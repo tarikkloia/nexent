@@ -4,9 +4,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.kloia.</groupId>
-    <artifactId>jview</artifactId>
-    <version>1.0.0</version>
+    <groupId>me.friwi</groupId>
+    <artifactId>kjview</artifactId>
+    <version>135.0.20</version>
 
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
@@ -15,25 +15,11 @@
     </properties>
 
     <dependencies>
-
-        <!-- JCEF Maven Wrapper (local jar) -->
         <dependency>
             <groupId>me.friwi</groupId>
             <artifactId>jcefmaven</artifactId>
             <version>135.0.20</version>
-<!--            <scope>system</scope>-->
-<!--            <systemPath>${project.basedir}/lib/jcefmaven-135.0.20.jar</systemPath>-->
         </dependency>
-
-        <!-- JCEF runtime -->
-        <dependency>
-            <groupId>org.cef</groupId>
-            <artifactId>jcef</artifactId>
-            <version>116</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/jcef.jar</systemPath>
-        </dependency>
-
     </dependencies>
 
     <build>
@@ -43,14 +29,12 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.kloia.jview.MainFrame</mainClass>
+                            <mainClass>me.friwi.kjview.MainFrame</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
                         <descriptorRef>jar-with-dependencies</descriptorRef>
                     </descriptorRefs>
-                    <finalName>jview-app</finalName>
-                    <appendAssemblyId>false</appendAssemblyId>
                 </configuration>
                 <executions>
                     <execution>
@@ -61,14 +45,6 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>9</source>
-                    <target>9</target>
-                </configuration>
             </plugin>
         </plugins>
     </build>

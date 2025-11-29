@@ -29,7 +29,7 @@ cd release_info
 echo "release_tag_name=$mvn_version" >> $GITHUB_ENV
 
 #Name
-echo "release_name=JCefSampleApp for $mvn_version" >> $GITHUB_ENV 
+echo "release_name=kjview for $mvn_version" >> $GITHUB_ENV
 
 #Readme
 (
@@ -40,7 +40,7 @@ echo "release_name=JCefSampleApp for $mvn_version" >> $GITHUB_ENV
   echo ""
   echo "**Test the resulting build on your platform:**"
   echo "\`\`\`"
-  echo "java -jar jcefsampleapp-$mvn_version-jar-with-dependencies.jar"
+  echo "java -jar kjview-$mvn_version-jar-with-dependencies.jar"
   echo "\`\`\`"
   echo "Make sure to include the required module opens when running on JDK 16 or later. You can find them [here](https://github.com/jcefmaven/jcefmaven#limitations)."
   echo ""

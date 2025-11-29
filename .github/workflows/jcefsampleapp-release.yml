@@ -1,4 +1,4 @@
-name: jcefsampleapp-release
+name: kjview-release
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ on:
         required: true
 
 jobs:
-  jcefsampleapp-release:
+  kjview-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -31,10 +31,10 @@ jobs:
           gh release upload ${{env.release_tag_name}} release_info/build_meta.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build jcefsampleapp
+      - name: Build kjview
         run: chmod +x generate_artifacts.sh && ./generate_artifacts.sh ${{ github.event.inputs.mvn_version }}
-      - name: Add jcefsampleapp artifact
+      - name: Add kjview artifact
         run: |
-          gh release upload ${{env.release_tag_name}} out/jcefsampleapp-${{ github.event.inputs.mvn_version }}-jar-with-dependencies.jar
+          gh release upload ${{env.release_tag_name}} out/kjview-${{ github.event.inputs.mvn_version }}-jar-with-dependencies.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

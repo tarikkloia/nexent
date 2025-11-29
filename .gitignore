@@ -4,4 +4,5 @@ out
 target
 jcef-bundle
 release_info
-
+jcef_cache
+build

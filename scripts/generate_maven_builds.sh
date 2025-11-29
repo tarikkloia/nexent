@@ -21,7 +21,7 @@ echo "Creating maven artifacts for $mvn_version..."
 
 #jcefmaven
 echo "###########################################"
-echo "# Creating jcefsampleapp                  #"
+echo "# Creating kjview                  #"
 echo "###########################################"
-./generate_jcefsampleapp.sh
+./generate_kjview.sh
 
