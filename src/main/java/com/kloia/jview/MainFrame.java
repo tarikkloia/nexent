@@ -384,6 +384,7 @@ public class MainFrame extends JFrame {
 
 //        new MainFrame(url, useOsr, false, args);
     }
+
 //    public class CookieUtils {
 //
 //        public static void clearAllCookies() {
