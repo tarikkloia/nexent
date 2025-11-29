@@ -38,6 +38,11 @@ public class MainFrame extends JFrame {
     private boolean browserFocus_ = true;
     private boolean loginAttempted_ = false;
 
+    // Call control buttons
+    private JButton acceptButton;
+    private JButton rejectButton;
+    private JButton hangupButton;
+
     // AWS Connect credentials
     private static final String AWS_USERNAME = "o_ozcan";
     private static final String AWS_PASSWORD = "326748.k_AWS";
@@ -103,6 +108,33 @@ public class MainFrame extends JFrame {
 
         // Message router (CEF-JS iletişimi için)
         CefMessageRouter msgRouter = CefMessageRouter.create();
+        msgRouter.addHandler(new CefMessageRouterHandlerAdapter() {
+            @Override
+            public boolean onQuery(CefBrowser browser, CefFrame frame, long queryId, String request,
+                                  boolean persistent, CefQueryCallback callback) {
+                System.out.println("===========================================");
+                System.out.println("EVENT FROM AWS CONNECT: " + request);
+                System.out.println("===========================================");
+
+                // Event tipine göre işlem yap
+                if (request.startsWith("INCOMING_CALL:")) {
+                    String callData = request.substring("INCOMING_CALL:".length());
+                    onIncomingCall(callData);
+                } else if (request.startsWith("CALL_CONNECTED:")) {
+                    String callData = request.substring("CALL_CONNECTED:".length());
+                    onCallConnected(callData);
+                } else if (request.startsWith("CALL_ENDED:")) {
+                    String callData = request.substring("CALL_ENDED:".length());
+                    onCallEnded(callData);
+                } else if (request.startsWith("AGENT_STATE:")) {
+                    String state = request.substring("AGENT_STATE:".length());
+                    onAgentStateChange(state);
+                }
+
+                callback.success("Event received");
+                return true;
+            }
+        }, true);
         client_.addMessageRouter(msgRouter);
 
 
@@ -202,35 +234,227 @@ public class MainFrame extends JFrame {
                     browser.executeJavaScript(script, url, 0);
                 }
 
-                // Login başarılı olduysa
-                if (url.contains("ccp-v2") && url.contains("softphone")) {
-                    System.out.println("AWS Connect CCP'ye başarıyla giriş yapıldı!");
+                // CCP yüklendiyse AWS Connect Streams event listener'larını ekle
+                if (url.contains("ccp-v2") && !url.contains("login") && !url.contains("auth")) {
+                    System.out.println("AWS Connect CCP yüklendi, event listener'lar ekleniyor...");
+
+                    String connectEventsScript = "setTimeout(function() {\n" +
+                        "  console.log('AWS CONNECT: Setting up event listeners...');\n" +
+                        "  \n" +
+                        "  // connect global objesi var mı kontrol et\n" +
+                        "  if (typeof connect !== 'undefined' && connect.contact) {\n" +
+                        "    console.log('AWS CONNECT: connect object found, subscribing to events...');\n" +
+                        "    \n" +
+                        "    // Global contact reference for Java button control\n" +
+                        "    window.currentContact = null;\n" +
+                        "    \n" +
+                        "    // Contact (arama) event'leri\n" +
+                        "    connect.contact(function(contact) {\n" +
+                        "      console.log('AWS CONNECT: New contact detected!');\n" +
+                        "      window.currentContact = contact;\n" +
+                        "      \n" +
+                        "      var contactId = contact.getContactId();\n" +
+                        "      var queue = contact.getQueue();\n" +
+                        "      var queueName = queue ? queue.name : 'Unknown';\n" +
+                        "      \n" +
+                        "      // Gelen arama (incoming)\n" +
+                        "      contact.onIncoming(function(contact) {\n" +
+                        "        console.log('AWS CONNECT: INCOMING CALL!');\n" +
+                        "        window.currentContact = contact;\n" +
+                        "        var conn = contact.getInitialConnection();\n" +
+                        "        var phoneNumber = conn ? conn.getEndpoint().phoneNumber : 'Unknown';\n" +
+                        "        var data = JSON.stringify({contactId: contactId, phoneNumber: phoneNumber, queue: queueName, type: 'incoming'});\n" +
+                        "        window.cefQuery({request: 'INCOMING_CALL:' + data});\n" +
+                        "      });\n" +
+                        "      \n" +
+                        "      // Arama bağlandı\n" +
+                        "      contact.onConnected(function(contact) {\n" +
+                        "        console.log('AWS CONNECT: CALL CONNECTED!');\n" +
+                        "        var conn = contact.getInitialConnection();\n" +
+                        "        var phoneNumber = conn ? conn.getEndpoint().phoneNumber : 'Unknown';\n" +
+                        "        var data = JSON.stringify({contactId: contactId, phoneNumber: phoneNumber, queue: queueName, type: 'connected'});\n" +
+                        "        window.cefQuery({request: 'CALL_CONNECTED:' + data});\n" +
+                        "      });\n" +
+                        "      \n" +
+                        "      // Arama kabul edildi (agent cevapladı)\n" +
+                        "      contact.onAccepted(function(contact) {\n" +
+                        "        console.log('AWS CONNECT: CALL ACCEPTED!');\n" +
+                        "        var data = JSON.stringify({contactId: contactId, type: 'accepted'});\n" +
+                        "        window.cefQuery({request: 'CALL_ACCEPTED:' + data});\n" +
+                        "      });\n" +
+                        "      \n" +
+                        "      // Arama sonlandı\n" +
+                        "      contact.onEnded(function(contact) {\n" +
+                        "        console.log('AWS CONNECT: CALL ENDED!');\n" +
+                        "        window.currentContact = null;\n" +
+                        "        var data = JSON.stringify({contactId: contactId, type: 'ended'});\n" +
+                        "        window.cefQuery({request: 'CALL_ENDED:' + data});\n" +
+                        "      });\n" +
+                        "      \n" +
+                        "      // Missed call\n" +
+                        "      contact.onMissed(function(contact) {\n" +
+                        "        console.log('AWS CONNECT: CALL MISSED!');\n" +
+                        "        window.currentContact = null;\n" +
+                        "        var data = JSON.stringify({contactId: contactId, type: 'missed'});\n" +
+                        "        window.cefQuery({request: 'CALL_MISSED:' + data});\n" +
+                        "      });\n" +
+                        "    });\n" +
+                        "    \n" +
+                        "    // Agent durumu event'leri\n" +
+                        "    connect.agent(function(agent) {\n" +
+                        "      console.log('AWS CONNECT: Agent connected');\n" +
+                        "      window.currentAgent = agent;\n" +
+                        "      \n" +
+                        "      agent.onStateChange(function(agentStateChange) {\n" +
+                        "        var newState = agentStateChange.newState;\n" +
+                        "        var oldState = agentStateChange.oldState;\n" +
+                        "        console.log('AWS CONNECT: Agent state changed from ' + oldState + ' to ' + newState);\n" +
+                        "        window.cefQuery({request: 'AGENT_STATE:' + newState});\n" +
+                        "      });\n" +
+                        "      \n" +
+                        "      // İlk durum\n" +
+                        "      var currentState = agent.getState().name;\n" +
+                        "      console.log('AWS CONNECT: Initial agent state: ' + currentState);\n" +
+                        "      window.cefQuery({request: 'AGENT_STATE:' + currentState});\n" +
+                        "    });\n" +
+                        "    \n" +
+                        "    console.log('AWS CONNECT: Event listeners setup complete!');\n" +
+                        "  } else {\n" +
+                        "    console.log('AWS CONNECT: connect object not found, retrying in 2 seconds...');\n" +
+                        "    setTimeout(arguments.callee, 2000);\n" +
+                        "  }\n" +
+                        "}, 3000);";
+
+                    browser.executeJavaScript(connectEventsScript, url, 0);
                 }
             }
         });
+        // ==================== CALL CONTROL BUTTONS ====================
+        JButton acceptBtn = new JButton("✓ Cevapla");
+        acceptBtn.setBackground(new Color(46, 204, 113));
+        acceptBtn.setForeground(Color.WHITE);
+        acceptBtn.setFont(new Font("Arial", Font.BOLD, 14));
+        acceptBtn.setEnabled(false);
+
+        JButton rejectBtn = new JButton("✗ Reddet");
+        rejectBtn.setBackground(new Color(231, 76, 60));
+        rejectBtn.setForeground(Color.WHITE);
+        rejectBtn.setFont(new Font("Arial", Font.BOLD, 14));
+        rejectBtn.setEnabled(false);
+
+        JButton hangupBtn = new JButton("Kapat");
+        hangupBtn.setBackground(new Color(192, 57, 43));
+        hangupBtn.setForeground(Color.WHITE);
+        hangupBtn.setFont(new Font("Arial", Font.BOLD, 14));
+        hangupBtn.setEnabled(false);
+
+        JButton availableBtn = new JButton("Available");
+        availableBtn.setBackground(new Color(39, 174, 96));
+        availableBtn.setForeground(Color.WHITE);
+
+        JButton offlineBtn = new JButton("Offline");
+        offlineBtn.setBackground(new Color(149, 165, 166));
+        offlineBtn.setForeground(Color.WHITE);
+
+        // Aramayı kabul et
+        acceptBtn.addActionListener(e -> {
+            System.out.println("Accept button clicked");
+            browser_.executeJavaScript(
+                "if (window.currentContact) { " +
+                "  window.currentContact.accept(); " +
+                "  console.log('Call accepted via Java button'); " +
+                "}", browser_.getURL(), 0);
+        });
+
+        // Aramayı reddet
+        rejectBtn.addActionListener(e -> {
+            System.out.println("Reject button clicked");
+            browser_.executeJavaScript(
+                "if (window.currentContact) { " +
+                "  window.currentContact.reject(); " +
+                "  console.log('Call rejected via Java button'); " +
+                "}", browser_.getURL(), 0);
+        });
+
+        // Aramayı sonlandır
+        hangupBtn.addActionListener(e -> {
+            System.out.println("Hangup button clicked");
+            browser_.executeJavaScript(
+                "if (window.currentContact) { " +
+                "  var conn = window.currentContact.getAgentConnection(); " +
+                "  if (conn) conn.destroy(); " +
+                "  console.log('Call ended via Java button'); " +
+                "}", browser_.getURL(), 0);
+        });
+
+        // Agent durumunu Available yap
+        availableBtn.addActionListener(e -> {
+            System.out.println("Setting agent to Available");
+            browser_.executeJavaScript(
+                "if (typeof connect !== 'undefined') { " +
+                "  connect.agent(function(agent) { " +
+                "    var states = agent.getAgentStates(); " +
+                "    var availableState = states.find(function(s) { return s.name === 'Available'; }); " +
+                "    if (availableState) { " +
+                "      agent.setState(availableState, { " +
+                "        success: function() { console.log('Agent set to Available'); }, " +
+                "        failure: function() { console.log('Failed to set Available'); } " +
+                "      }); " +
+                "    } " +
+                "  }); " +
+                "}", browser_.getURL(), 0);
+        });
+
+        // Agent durumunu Offline yap
+        offlineBtn.addActionListener(e -> {
+            System.out.println("Setting agent to Offline");
+            browser_.executeJavaScript(
+                "if (typeof connect !== 'undefined') { " +
+                "  connect.agent(function(agent) { " +
+                "    var states = agent.getAgentStates(); " +
+                "    var offlineState = states.find(function(s) { return s.name === 'Offline'; }); " +
+                "    if (offlineState) { " +
+                "      agent.setState(offlineState, { " +
+                "        success: function() { console.log('Agent set to Offline'); }, " +
+                "        failure: function() { console.log('Failed to set Offline'); } " +
+                "      }); " +
+                "    } " +
+                "  }); " +
+                "}", browser_.getURL(), 0);
+        });
+
+        // Store buttons as instance variables for enabling/disabling
+        this.acceptButton = acceptBtn;
+        this.rejectButton = rejectBtn;
+        this.hangupButton = hangupBtn;
+
         JButton refreshBtn = new JButton("Refresh");
         JButton logoutBtn = new JButton("Logout");
         refreshBtn.addActionListener(e -> browser_.reload());
         logoutBtn.addActionListener(e -> {
-// Cache temizlemek için
             File cacheDir2 = new File("jcef_cache");
             if (cacheDir2.exists()) {
                 deleteDir(cacheDir2);
             }
             CefCookieManager cookieManager = CefCookieManager.getGlobalManager();
             if (cookieManager != null) {
-                // Tüm cookie’leri silmek için boş stringler ver
                 boolean success = cookieManager.deleteCookies("", "");
                 System.out.println("Cookie temizleme durumu: " + success);
             }
-
-//            CookieUtils.clearAllCookies();
             browser_.loadURL(startURLAWS);
         });
 
+        // Top panel with call controls
+        JPanel callControlPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
+        callControlPanel.add(acceptBtn);
+        callControlPanel.add(rejectBtn);
+        callControlPanel.add(hangupBtn);
+        callControlPanel.add(new JSeparator(SwingConstants.VERTICAL));
+        callControlPanel.add(availableBtn);
+        callControlPanel.add(offlineBtn);
 
         JPanel topPanel = new JPanel(new BorderLayout(5, 0));
-//        topPanel.add(address_, BorderLayout.CENTER);
+        topPanel.add(callControlPanel, BorderLayout.CENTER);
         topPanel.add(refreshBtn, BorderLayout.WEST);
         topPanel.add(logoutBtn, BorderLayout.EAST);
 
@@ -289,6 +513,11 @@ public class MainFrame extends JFrame {
 //                .setFullScreenWindow(this);
 
         getContentPane().add(topPanel, BorderLayout.NORTH);
+
+        // CCP'yi gizlemek için browserUI_ boyutunu küçültebilir veya tamamen gizleyebilirsiniz
+        // browserUI_.setPreferredSize(new Dimension(1, 1)); // Minimum boyut - görünmez ama aktif
+        // browserUI_.setVisible(false); // Tamamen gizle (DİKKAT: Ses çalışmayabilir)
+
         getContentPane().add(browserUI_, BorderLayout.CENTER);
         pack();
 //        setSize(800, 600);
@@ -333,6 +562,66 @@ public class MainFrame extends JFrame {
             }
         });
     }
+    // ==================== EVENT HANDLERS ====================
+
+    /**
+     * Gelen arama event'i - Arama geldiğinde çağrılır
+     */
+    private void onIncomingCall(String callData) {
+        System.out.println("*** GELEN ARAMA ***");
+        System.out.println("Call Data: " + callData);
+
+        // Butonları aktif et
+        SwingUtilities.invokeLater(() -> {
+            if (acceptButton != null) acceptButton.setEnabled(true);
+            if (rejectButton != null) rejectButton.setEnabled(true);
+            if (hangupButton != null) hangupButton.setEnabled(false);
+
+            // Burada müşteri kartı gösterebilirsiniz
+            // showCustomerCard(callData);
+        });
+    }
+
+    /**
+     * Arama bağlandığında çağrılır
+     */
+    private void onCallConnected(String callData) {
+        System.out.println("*** ARAMA BAĞLANDI ***");
+        System.out.println("Call Data: " + callData);
+
+        SwingUtilities.invokeLater(() -> {
+            if (acceptButton != null) acceptButton.setEnabled(false);
+            if (rejectButton != null) rejectButton.setEnabled(false);
+            if (hangupButton != null) hangupButton.setEnabled(true);
+        });
+    }
+
+    /**
+     * Arama sonlandığında çağrılır
+     */
+    private void onCallEnded(String callData) {
+        System.out.println("*** ARAMA SONLANDI ***");
+        System.out.println("Call Data: " + callData);
+
+        SwingUtilities.invokeLater(() -> {
+            if (acceptButton != null) acceptButton.setEnabled(false);
+            if (rejectButton != null) rejectButton.setEnabled(false);
+            if (hangupButton != null) hangupButton.setEnabled(false);
+
+            // Müşteri kartını gizle
+            // hideCustomerCard();
+        });
+    }
+
+    /**
+     * Agent durumu değiştiğinde çağrılır (Available, Busy, Offline vb.)
+     */
+    private void onAgentStateChange(String state) {
+        System.out.println("*** AGENT DURUMU DEĞİŞTİ: " + state + " ***");
+    }
+
+    // ==================== UTILITY METHODS ====================
+
     public static boolean deleteDir(File dir) {
         if (dir.isDirectory()) {
             for (File f : dir.listFiles()) {
