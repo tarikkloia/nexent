@@ -496,6 +496,7 @@ public class MainFrame extends JFrame {
         JButton logoutBtn = new JButton("Logout");
         refreshBtn.setEnabled(false);
         logoutBtn.setEnabled(false);
+        logoutBtn.setVisible(false);
         this.refreshButton = refreshBtn;
         this.logoutButton = logoutBtn;
 
@@ -590,11 +591,13 @@ public class MainFrame extends JFrame {
 
         setSize(900, 650);
         setLocationRelativeTo(null); // Center on screen
-        setVisible(true);
 
-        // Create splash dialog on top of main frame
+        // Create and show splash dialog BEFORE main frame is visible
         splashDialog = createSplashDialog();
         splashDialog.setVisible(true);
+
+        // Now show main frame (splash is already on top)
+        setVisible(true);
 
         addWindowListener(new WindowAdapter() {
             @Override
