@@ -36,6 +36,18 @@ public class MainFrame extends JFrame {
     private JButton acceptButton;
     private JButton rejectButton;
     private JButton hangupButton;
+    private JButton availableButton;
+    private JButton offlineButton;
+    private JButton refreshButton;
+    private JButton logoutButton;
+
+    // Numpad panel reference
+    private JPanel numpadPanel;
+
+    // Splash screen components
+    private JDialog splashDialog;
+    private JPanel mainContentPanel;
+    private JLabel statusLabel;
 
     // AWS Connect credentials
     private static final String AWS_USERNAME = "o_ozcan";
@@ -174,6 +186,7 @@ public class MainFrame extends JFrame {
 
                 if (isLoginPage) {
                     System.out.println("Login page detected, executing auto-login script...");
+                    updateSplashStatus("Signing in...");
 
                     String script = "setTimeout(function() {\n" +
                         "  console.log('AUTO LOGIN: Starting...');\n" +
@@ -222,6 +235,7 @@ public class MainFrame extends JFrame {
                 // Add AWS Connect Streams event listeners when CCP is loaded
                 if (url.contains("ccp-v2") && !url.contains("login") && !url.contains("auth")) {
                     System.out.println("AWS Connect CCP loaded, adding event listeners...");
+                    updateSplashStatus("Loading AWS Connect CCP...");
 
                     String connectEventsScript = "setTimeout(function() {\n" +
                         "  console.log('AWS CONNECT: Setting up event listeners...');\n" +
@@ -337,10 +351,12 @@ public class MainFrame extends JFrame {
         JButton availableBtn = new JButton("Available");
         availableBtn.setBackground(new Color(39, 174, 96));
         availableBtn.setForeground(Color.WHITE);
+        availableBtn.setEnabled(false);
 
         JButton offlineBtn = new JButton("Offline");
         offlineBtn.setBackground(new Color(149, 165, 166));
         offlineBtn.setForeground(Color.WHITE);
+        offlineBtn.setEnabled(false);
 
         // Accept call
         acceptBtn.addActionListener(e -> {
@@ -413,9 +429,16 @@ public class MainFrame extends JFrame {
         this.acceptButton = acceptBtn;
         this.rejectButton = rejectBtn;
         this.hangupButton = hangupBtn;
+        this.availableButton = availableBtn;
+        this.offlineButton = offlineBtn;
 
         JButton refreshBtn = new JButton("Refresh");
         JButton logoutBtn = new JButton("Logout");
+        refreshBtn.setEnabled(false);
+        logoutBtn.setEnabled(false);
+        this.refreshButton = refreshBtn;
+        this.logoutButton = logoutBtn;
+
         refreshBtn.addActionListener(e -> browser_.reload());
         logoutBtn.addActionListener(e -> {
             File cacheDir2 = new File("jcef_cache");
@@ -482,18 +505,18 @@ public class MainFrame extends JFrame {
 
         getContentPane().add(topPanel, BorderLayout.NORTH);
 
-        // ==================== MAIN LAYOUT ====================
-        // Center: numpad, Right: small CCP browser
-        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
-        mainPanel.setBackground(new Color(44, 62, 80));
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        // ==================== MAIN CONTENT PANEL ====================
+        mainContentPanel = new JPanel(new BorderLayout(10, 10));
+        mainContentPanel.setBackground(new Color(44, 62, 80));
+        mainContentPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         // Numpad in center
-        JPanel numpadPanel = createNumpadPanel();
+        numpadPanel = createNumpadPanel();
+        setNumpadEnabled(false); // Disabled until CCP login
         JPanel centerWrapper = new JPanel(new GridBagLayout());
         centerWrapper.setBackground(new Color(44, 62, 80));
         centerWrapper.add(numpadPanel);
-        mainPanel.add(centerWrapper, BorderLayout.CENTER);
+        mainContentPanel.add(centerWrapper, BorderLayout.CENTER);
 
         // CCP browser on the right (small)
         JPanel browserPanel = new JPanel(new BorderLayout());
@@ -508,14 +531,19 @@ public class MainFrame extends JFrame {
         ));
         browserPanel.setBackground(new Color(44, 62, 80));
         browserPanel.add(browserUI_, BorderLayout.CENTER);
-        mainPanel.add(browserPanel, BorderLayout.EAST);
+        mainContentPanel.add(browserPanel, BorderLayout.EAST);
 
-        getContentPane().add(mainPanel, BorderLayout.CENTER);
+        // Add main content to frame
+        getContentPane().add(mainContentPanel, BorderLayout.CENTER);
         getContentPane().setBackground(new Color(44, 62, 80));
 
         setSize(900, 650);
         setLocationRelativeTo(null); // Center on screen
         setVisible(true);
+
+        // Create splash dialog on top of main frame
+        splashDialog = createSplashDialog();
+        splashDialog.setVisible(true);
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -576,6 +604,125 @@ public class MainFrame extends JFrame {
      */
     private void onAgentStateChange(String state) {
         System.out.println("*** AGENT STATE CHANGED: " + state + " ***");
+
+        // When we receive the first agent state, CCP is ready
+        if (splashDialog != null && splashDialog.isVisible()) {
+            onCCPReady();
+        }
+    }
+
+    // ==================== SPLASH SCREEN ====================
+
+    /**
+     * Creates the splash dialog
+     */
+    private JDialog createSplashDialog() {
+        JDialog dialog = new JDialog(this, "Loading...", false); // Non-modal
+        dialog.setUndecorated(true);
+        dialog.setSize(450, 250);
+        dialog.setLocationRelativeTo(this);
+
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(new Color(44, 62, 80));
+        panel.setBorder(BorderFactory.createLineBorder(new Color(0, 115, 187), 2));
+
+        JPanel contentPanel = new JPanel();
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+        contentPanel.setBackground(new Color(44, 62, 80));
+
+        // Logo/Title
+        JLabel titleLabel = new JLabel("KLOIA");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 48));
+        titleLabel.setForeground(new Color(0, 115, 187));
+        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // Subtitle
+        JLabel subtitleLabel = new JLabel("AWS Connect Agent Desktop");
+        subtitleLabel.setFont(new Font("Arial", Font.PLAIN, 18));
+        subtitleLabel.setForeground(Color.WHITE);
+        subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // Status label
+        statusLabel = new JLabel("Connecting to AWS Connect...");
+        statusLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+        statusLabel.setForeground(new Color(150, 150, 150));
+        statusLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // Progress indicator
+        JProgressBar progressBar = new JProgressBar();
+        progressBar.setIndeterminate(true);
+        progressBar.setPreferredSize(new Dimension(300, 10));
+        progressBar.setMaximumSize(new Dimension(300, 10));
+        progressBar.setBackground(new Color(52, 73, 94));
+        progressBar.setForeground(new Color(0, 115, 187));
+        progressBar.setBorderPainted(false);
+        progressBar.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        contentPanel.add(titleLabel);
+        contentPanel.add(Box.createVerticalStrut(10));
+        contentPanel.add(subtitleLabel);
+        contentPanel.add(Box.createVerticalStrut(40));
+        contentPanel.add(progressBar);
+        contentPanel.add(Box.createVerticalStrut(15));
+        contentPanel.add(statusLabel);
+
+        panel.add(contentPanel);
+        dialog.setContentPane(panel);
+        return dialog;
+    }
+
+    /**
+     * Updates the splash screen status message
+     */
+    private void updateSplashStatus(String message) {
+        SwingUtilities.invokeLater(() -> {
+            if (statusLabel != null) {
+                statusLabel.setText(message);
+            }
+        });
+    }
+
+    /**
+     * Called when CCP is fully loaded and agent is connected
+     */
+    private void onCCPReady() {
+        SwingUtilities.invokeLater(() -> {
+            // Close splash dialog
+            if (splashDialog != null) {
+                splashDialog.dispose();
+                splashDialog = null;
+            }
+
+            // Enable controls
+            setNumpadEnabled(true);
+            if (availableButton != null) availableButton.setEnabled(true);
+            if (offlineButton != null) offlineButton.setEnabled(true);
+            if (refreshButton != null) refreshButton.setEnabled(true);
+            if (logoutButton != null) logoutButton.setEnabled(true);
+
+            // Refresh UI
+            revalidate();
+            repaint();
+
+            System.out.println("*** CCP READY - UI ENABLED ***");
+        });
+    }
+
+    /**
+     * Enables or disables all numpad buttons
+     */
+    private void setNumpadEnabled(boolean enabled) {
+        if (numpadPanel == null) return;
+
+        for (Component comp : numpadPanel.getComponents()) {
+            if (comp instanceof JPanel) {
+                for (Component innerComp : ((JPanel) comp).getComponents()) {
+                    if (innerComp instanceof JButton) {
+                        innerComp.setEnabled(enabled);
+                    }
+                }
+            }
+        }
     }
 
     // ==================== NUMPAD PANEL ====================
