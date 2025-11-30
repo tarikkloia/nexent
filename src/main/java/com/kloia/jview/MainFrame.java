@@ -44,6 +44,10 @@ public class MainFrame extends JFrame {
     // Numpad panel reference
     private JPanel numpadPanel;
 
+    // Phone input components
+    private JTextField phoneNumberInput;
+    private JButton dialButton;
+
     // Splash screen components
     private JDialog splashDialog;
     private JPanel mainContentPanel;
@@ -514,6 +518,50 @@ public class MainFrame extends JFrame {
             browser_.loadURL(startURLAWS);
         });
 
+        // ==================== PHONE INPUT PANEL ====================
+        JPanel phoneInputPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        phoneInputPanel.setBackground(new Color(44, 62, 80));
+
+        JLabel phoneLabel = new JLabel("Phone:");
+        phoneLabel.setForeground(Color.WHITE);
+        phoneLabel.setFont(new Font("Arial", Font.BOLD, 12));
+
+        phoneNumberInput = new JTextField(15);
+        phoneNumberInput.setFont(new Font("Arial", Font.PLAIN, 14));
+        phoneNumberInput.setToolTipText("E.164 format: +905321234567");
+        phoneNumberInput.setText("+90");
+
+        dialButton = new JButton("Call");
+        dialButton.setBackground(new Color(46, 204, 113));
+        dialButton.setForeground(Color.WHITE);
+        dialButton.setFont(new Font("Arial", Font.BOLD, 14));
+        dialButton.setEnabled(false);
+
+        // Dial button action
+        dialButton.addActionListener(e -> {
+            String phoneNumber = phoneNumberInput.getText().trim();
+            if (phoneNumber.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter a phone number", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            if (!phoneNumber.startsWith("+")) {
+                JOptionPane.showMessageDialog(this, "Phone number must start with + (E.164 format)\nExample: +905321234567", "Invalid Format", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if (!phoneNumber.matches("\\+[0-9]{10,15}")) {
+                JOptionPane.showMessageDialog(this, "Invalid E.164 format!\nMust be: +[country code][number]\nExample: +905321234567", "Invalid Format", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            initiateOutboundCall(phoneNumber);
+        });
+
+        // Enter key to dial
+        phoneNumberInput.addActionListener(e -> dialButton.doClick());
+
+        phoneInputPanel.add(phoneLabel);
+        phoneInputPanel.add(phoneNumberInput);
+        phoneInputPanel.add(dialButton);
+
         // Top panel with call controls
         JPanel callControlPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
         callControlPanel.add(acceptBtn);
@@ -524,9 +572,9 @@ public class MainFrame extends JFrame {
         callControlPanel.add(offlineBtn);
 
         JPanel topPanel = new JPanel(new BorderLayout(5, 0));
+        topPanel.add(phoneInputPanel, BorderLayout.WEST);
         topPanel.add(callControlPanel, BorderLayout.CENTER);
-        topPanel.add(refreshBtn, BorderLayout.WEST);
-        topPanel.add(logoutBtn, BorderLayout.EAST);
+        topPanel.add(refreshBtn, BorderLayout.EAST);
 
         address_.addFocusListener(new FocusAdapter() {
             @Override
@@ -756,6 +804,7 @@ public class MainFrame extends JFrame {
             if (offlineButton != null) offlineButton.setEnabled(true);
             if (refreshButton != null) refreshButton.setEnabled(true);
             if (logoutButton != null) logoutButton.setEnabled(true);
+            if (dialButton != null) dialButton.setEnabled(true);
 
             // Refresh UI
             revalidate();
@@ -878,6 +927,58 @@ public class MainFrame extends JFrame {
         panel.add(gridPanel, BorderLayout.CENTER);
 
         return panel;
+    }
+
+    /**
+     * Initiates an outbound call to the specified phone number
+     */
+    private void initiateOutboundCall(String phoneNumber) {
+        System.out.println("Initiating outbound call to: " + phoneNumber);
+
+        String script =
+            "(function() {\n" +
+            "  console.log('OUTBOUND CALL: Dialing " + phoneNumber + "');\n" +
+            "  \n" +
+            "  if (typeof connect === 'undefined') {\n" +
+            "    console.log('OUTBOUND CALL: connect object not found');\n" +
+            "    return;\n" +
+            "  }\n" +
+            "  \n" +
+            "  // First, fill the phone number in CCP input field\n" +
+            "  var inputs = document.querySelectorAll('input[type=\"tel\"], input[type=\"text\"]');\n" +
+            "  for (var i = 0; i < inputs.length; i++) {\n" +
+            "    var input = inputs[i];\n" +
+            "    var placeholder = (input.placeholder || '').toLowerCase();\n" +
+            "    var ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();\n" +
+            "    if (placeholder.indexOf('number') >= 0 || placeholder.indexOf('phone') >= 0 || \n" +
+            "        ariaLabel.indexOf('number') >= 0 || ariaLabel.indexOf('phone') >= 0) {\n" +
+            "      input.value = '" + phoneNumber + "';\n" +
+            "      input.dispatchEvent(new Event('input', {bubbles: true}));\n" +
+            "      input.dispatchEvent(new Event('change', {bubbles: true}));\n" +
+            "      console.log('OUTBOUND CALL: Phone number filled in CCP input');\n" +
+            "      break;\n" +
+            "    }\n" +
+            "  }\n" +
+            "  \n" +
+            "  // Then click the call/dial button\n" +
+            "  setTimeout(function() {\n" +
+            "    var buttons = document.querySelectorAll('button');\n" +
+            "    for (var j = 0; j < buttons.length; j++) {\n" +
+            "      var btn = buttons[j];\n" +
+            "      var text = (btn.innerText || '').toLowerCase();\n" +
+            "      var ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();\n" +
+            "      if (text.indexOf('call') >= 0 || text.indexOf('dial') >= 0 || \n" +
+            "          ariaLabel.indexOf('call') >= 0 || ariaLabel.indexOf('dial') >= 0) {\n" +
+            "        console.log('OUTBOUND CALL: Clicking dial button');\n" +
+            "        btn.click();\n" +
+            "        return;\n" +
+            "      }\n" +
+            "    }\n" +
+            "    console.log('OUTBOUND CALL: Dial button not found');\n" +
+            "  }, 500);\n" +
+            "})();\n";
+
+        browser_.executeJavaScript(script, browser_.getURL(), 0);
     }
 
     /**
