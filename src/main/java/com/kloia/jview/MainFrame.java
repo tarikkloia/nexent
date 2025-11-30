@@ -899,7 +899,14 @@ public class MainFrame extends JFrame {
             btn.add(digitLabel, BorderLayout.CENTER);
             btn.add(lettersLabel, BorderLayout.SOUTH);
 
-            btn.addActionListener(e -> sendDtmfDigit(digit));
+            btn.addActionListener(e -> {
+                // Append digit to Java phone input
+                if (phoneNumberInput != null) {
+                    phoneNumberInput.setText(phoneNumberInput.getText() + digit);
+                }
+                // Send to CCP numpad
+                sendDtmfDigit(digit);
+            });
 
             // Hover effect
             btn.addMouseListener(new MouseAdapter() {
@@ -925,6 +932,39 @@ public class MainFrame extends JFrame {
         }
 
         panel.add(gridPanel, BorderLayout.CENTER);
+
+        // Bottom panel with Clear and Backspace
+        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
+        bottomPanel.setBackground(new Color(35, 47, 62));
+
+        JButton clearBtn = new JButton("Clear");
+        clearBtn.setBackground(new Color(231, 76, 60));
+        clearBtn.setForeground(Color.WHITE);
+        clearBtn.setFont(new Font("Arial", Font.BOLD, 12));
+        clearBtn.setFocusPainted(false);
+        clearBtn.addActionListener(e -> {
+            if (phoneNumberInput != null) {
+                phoneNumberInput.setText("+90");
+            }
+        });
+
+        JButton backspaceBtn = new JButton("⌫");
+        backspaceBtn.setBackground(new Color(52, 73, 94));
+        backspaceBtn.setForeground(Color.WHITE);
+        backspaceBtn.setFont(new Font("Arial", Font.BOLD, 16));
+        backspaceBtn.setFocusPainted(false);
+        backspaceBtn.addActionListener(e -> {
+            if (phoneNumberInput != null) {
+                String text = phoneNumberInput.getText();
+                if (text.length() > 0) {
+                    phoneNumberInput.setText(text.substring(0, text.length() - 1));
+                }
+            }
+        });
+
+        bottomPanel.add(clearBtn);
+        bottomPanel.add(backspaceBtn);
+        panel.add(bottomPanel, BorderLayout.SOUTH);
 
         return panel;
     }
