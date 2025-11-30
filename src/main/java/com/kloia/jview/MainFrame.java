@@ -518,6 +518,10 @@ public class MainFrame extends JFrame {
         // browserUI_.setPreferredSize(new Dimension(1, 1)); // Minimum boyut - görünmez ama aktif
         // browserUI_.setVisible(false); // Tamamen gizle (DİKKAT: Ses çalışmayabilir)
 
+        // ==================== NUMPAD PANEL ====================
+        JPanel numpadPanel = createNumpadPanel();
+        getContentPane().add(numpadPanel, BorderLayout.EAST);
+
         getContentPane().add(browserUI_, BorderLayout.CENTER);
         pack();
 //        setSize(800, 600);
@@ -618,6 +622,83 @@ public class MainFrame extends JFrame {
      */
     private void onAgentStateChange(String state) {
         System.out.println("*** AGENT DURUMU DEĞİŞTİ: " + state + " ***");
+    }
+
+    // ==================== NUMPAD PANEL ====================
+
+    /**
+     * Numpad paneli oluşturur - telefon tuş takımı gibi
+     */
+    private JPanel createNumpadPanel() {
+        JPanel panel = new JPanel(new BorderLayout(5, 5));
+        panel.setBorder(BorderFactory.createTitledBorder("Tuş Takımı"));
+        panel.setPreferredSize(new Dimension(200, 350));
+
+        // Numpad grid (4x3)
+        JPanel gridPanel = new JPanel(new GridLayout(4, 3, 5, 5));
+        gridPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        String[] buttons = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"};
+
+        for (String label : buttons) {
+            JButton btn = new JButton(label);
+            btn.setFont(new Font("Arial", Font.BOLD, 24));
+            btn.setPreferredSize(new Dimension(55, 55));
+            btn.setBackground(new Color(52, 73, 94));
+            btn.setForeground(Color.WHITE);
+            btn.setFocusPainted(false);
+            btn.setBorder(BorderFactory.createRaisedBevelBorder());
+
+            btn.addActionListener(e -> sendDtmfDigit(label));
+
+            // Hover efekti
+            btn.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    btn.setBackground(new Color(41, 128, 185));
+                }
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    btn.setBackground(new Color(52, 73, 94));
+                }
+            });
+
+            gridPanel.add(btn);
+        }
+
+        panel.add(gridPanel, BorderLayout.CENTER);
+
+        // Bilgi label'ı
+        JLabel infoLabel = new JLabel("<html><center>Görüşme sırasında<br>tuşlara basın</center></html>");
+        infoLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        infoLabel.setFont(new Font("Arial", Font.PLAIN, 11));
+        infoLabel.setForeground(Color.GRAY);
+        panel.add(infoLabel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    /**
+     * CCP'deki numpad butonuna tıklama simüle eder
+     */
+    private void sendDtmfDigit(String digit) {
+        System.out.println("Numpad tuşu basıldı: " + digit);
+
+        String script =
+            "(function() {\n" +
+            "  var allButtons = document.querySelectorAll('button');\n" +
+            "  for (var i = 0; i < allButtons.length; i++) {\n" +
+            "    var btn = allButtons[i];\n" +
+            "    var text = btn.innerText.trim();\n" +
+            "    if (text === '" + digit + "' || text.indexOf('" + digit + "') === 0) {\n" +
+            "      btn.click();\n" +
+            "      console.log('DTMF: " + digit + "');\n" +
+            "      return;\n" +
+            "    }\n" +
+            "  }\n" +
+            "})();\n";
+
+        browser_.executeJavaScript(script, browser_.getURL(), 0);
     }
 
     // ==================== UTILITY METHODS ====================
