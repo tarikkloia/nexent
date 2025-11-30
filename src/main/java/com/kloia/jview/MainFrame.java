@@ -3,7 +3,6 @@ package com.kloia.jview;
 import me.friwi.jcefmaven.*;
 import org.cef.CefApp;
 import org.cef.CefApp.CefAppState;
-import org.cef.CefBrowserSettings;
 import org.cef.CefClient;
 import org.cef.browser.CefBrowser;
 import org.cef.browser.CefFrame;
@@ -23,10 +22,6 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Comparator;
 
 public class MainFrame extends JFrame {
     private static final long serialVersionUID = -5570653778104813836L;
@@ -36,7 +31,6 @@ public class MainFrame extends JFrame {
     private final CefBrowser browser_;
     private final Component browserUI_;
     private boolean browserFocus_ = true;
-    private boolean loginAttempted_ = false;
 
     // Call control buttons
     private JButton acceptButton;
@@ -48,8 +42,10 @@ public class MainFrame extends JFrame {
     private static final String AWS_PASSWORD = "326748.k_AWS";
     private static final String AWS_CONNECT_URL = "https://kloia-nexent.my.connect.aws/ccp-v2";
 
-    private MainFrame(String startURLAWS,String startURL, boolean useOSR, boolean isTransparent, String[] args)
+    private MainFrame(String startURLAWS, String startURL, boolean useOSR, boolean isTransparent, String[] args)
             throws UnsupportedPlatformException, CefInitializationException, IOException, InterruptedException {
+
+        // Set taskbar icon
         try {
             if (Taskbar.isTaskbarSupported()) {
                 Taskbar taskbar = Taskbar.getTaskbar();
@@ -60,27 +56,24 @@ public class MainFrame extends JFrame {
                 }
             }
         } catch (UnsupportedOperationException e) {
-            System.err.println("Dock icon değiştirilemiyor: " + e.getMessage());
+            System.err.println("Cannot change dock icon: " + e.getMessage());
         }
+
         // CEF initialization
         CefAppBuilder builder = new CefAppBuilder();
-        builder.addJcefArgs("--use-fake-ui-for-media-stream"); // tüm medya izinlerini otomatik kabul eder
+        builder.addJcefArgs("--use-fake-ui-for-media-stream"); // Auto-accept all media permissions
         builder.addJcefArgs("--disable-popup-blocking");
         builder.addJcefArgs("--enable-features=NetworkService,NetworkServiceInProcess");
         builder.addJcefArgs("--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure");
 
-
-
         builder.getCefSettings().windowless_rendering_enabled = useOSR;
-
         builder.getCefSettings().persist_session_cookies = true;
-//        builder.getCefSettings().cache_path = "jcef_cache"; // cookie ve cache kalıcı olur
-        // Kalıcı cache ve cookie
+
+        // Persistent cache and cookies
         File cacheDir = new File("jcef_cache");
         if (!cacheDir.exists()) cacheDir.mkdirs();
         builder.getCefSettings().cache_path = cacheDir.getAbsolutePath();
         builder.getCefSettings().persist_session_cookies = true;
-
 
         builder.setAppHandler(new MavenCefAppHandlerAdapter() {
             @Override
@@ -93,20 +86,21 @@ public class MainFrame extends JFrame {
 
         cefApp_ = builder.build();
         client_ = cefApp_.createClient();
+
+        // Popup handler - redirect popups to main browser
         client_.addLifeSpanHandler(new org.cef.handler.CefLifeSpanHandlerAdapter() {
             @Override
             public boolean onBeforePopup(org.cef.browser.CefBrowser browser,
                                          org.cef.browser.CefFrame frame,
                                          String target_url,
                                          String target_frame_name) {
-                System.out.println("Popup engellendi, yönlendiriliyor: " + target_url);
+                System.out.println("Popup blocked, redirecting to: " + target_url);
                 SwingUtilities.invokeLater(() -> browser.loadURL(target_url));
                 return true;
             }
         });
 
-
-        // Message router (CEF-JS iletişimi için)
+        // Message router for CEF-JS communication
         CefMessageRouter msgRouter = CefMessageRouter.create();
         msgRouter.addHandler(new CefMessageRouterHandlerAdapter() {
             @Override
@@ -116,7 +110,7 @@ public class MainFrame extends JFrame {
                 System.out.println("EVENT FROM AWS CONNECT: " + request);
                 System.out.println("===========================================");
 
-                // Event tipine göre işlem yap
+                // Handle events based on type
                 if (request.startsWith("INCOMING_CALL:")) {
                     String callData = request.substring("INCOMING_CALL:".length());
                     onIncomingCall(callData);
@@ -137,10 +131,7 @@ public class MainFrame extends JFrame {
         }, true);
         client_.addMessageRouter(msgRouter);
 
-
-//        CefBrowser popup = client_.createBrowser(startURLAWS, false, false);
-
-        // Browser oluşturma
+        // Create browser
         browser_ = client_.createBrowser(startURLAWS, useOSR, isTransparent);
         browserUI_ = browser_.getUIComponent();
 
@@ -149,17 +140,11 @@ public class MainFrame extends JFrame {
                 browser_.getURL(), 0
         );
 
-        // Adres çubuğu
+        // Address bar
         address_ = new JTextField(startURLAWS, 100);
         address_.addActionListener(e -> browser_.loadURL(address_.getText()));
 
-        // Browser URL değiştiğinde adres çubuğunu güncelle
-//        client_.addDisplayHandler(new CefDisplayHandlerAdapter() {
-//            @Override
-//            public void onAddressChange(CefBrowser browser, CefFrame frame, String url) {
-//                address_.setText(url);
-//            }
-//        });
+        // Display handler for URL changes and console messages
         client_.addDisplayHandler(new CefDisplayHandlerAdapter() {
             @Override
             public void onAddressChange(CefBrowser browser, CefFrame frame, String url) {
@@ -174,14 +159,14 @@ public class MainFrame extends JFrame {
             }
         });
 
-        // Auto-login handler - sayfa yüklendiğinde login formunu doldur
+        // Auto-login handler - fill login form when page loads
         client_.addLoadHandler(new CefLoadHandlerAdapter() {
             @Override
             public void onLoadEnd(CefBrowser browser, CefFrame frame, int httpStatusCode) {
                 String url = browser.getURL();
                 System.out.println("Page loaded: " + url);
 
-                // Login sayfası kontrolü
+                // Check if login page
                 boolean isLoginPage = url.contains("signin") || url.contains("login") ||
                                      url.contains("oauth") || url.contains("authenticate") ||
                                      url.contains("awsapps.com/auth") || url.contains("/auth/") ||
@@ -234,21 +219,21 @@ public class MainFrame extends JFrame {
                     browser.executeJavaScript(script, url, 0);
                 }
 
-                // CCP yüklendiyse AWS Connect Streams event listener'larını ekle
+                // Add AWS Connect Streams event listeners when CCP is loaded
                 if (url.contains("ccp-v2") && !url.contains("login") && !url.contains("auth")) {
-                    System.out.println("AWS Connect CCP yüklendi, event listener'lar ekleniyor...");
+                    System.out.println("AWS Connect CCP loaded, adding event listeners...");
 
                     String connectEventsScript = "setTimeout(function() {\n" +
                         "  console.log('AWS CONNECT: Setting up event listeners...');\n" +
                         "  \n" +
-                        "  // connect global objesi var mı kontrol et\n" +
+                        "  // Check if connect global object exists\n" +
                         "  if (typeof connect !== 'undefined' && connect.contact) {\n" +
                         "    console.log('AWS CONNECT: connect object found, subscribing to events...');\n" +
                         "    \n" +
                         "    // Global contact reference for Java button control\n" +
                         "    window.currentContact = null;\n" +
                         "    \n" +
-                        "    // Contact (arama) event'leri\n" +
+                        "    // Contact (call) events\n" +
                         "    connect.contact(function(contact) {\n" +
                         "      console.log('AWS CONNECT: New contact detected!');\n" +
                         "      window.currentContact = contact;\n" +
@@ -257,7 +242,7 @@ public class MainFrame extends JFrame {
                         "      var queue = contact.getQueue();\n" +
                         "      var queueName = queue ? queue.name : 'Unknown';\n" +
                         "      \n" +
-                        "      // Gelen arama (incoming)\n" +
+                        "      // Incoming call\n" +
                         "      contact.onIncoming(function(contact) {\n" +
                         "        console.log('AWS CONNECT: INCOMING CALL!');\n" +
                         "        window.currentContact = contact;\n" +
@@ -267,7 +252,7 @@ public class MainFrame extends JFrame {
                         "        window.cefQuery({request: 'INCOMING_CALL:' + data});\n" +
                         "      });\n" +
                         "      \n" +
-                        "      // Arama bağlandı\n" +
+                        "      // Call connected\n" +
                         "      contact.onConnected(function(contact) {\n" +
                         "        console.log('AWS CONNECT: CALL CONNECTED!');\n" +
                         "        var conn = contact.getInitialConnection();\n" +
@@ -276,14 +261,14 @@ public class MainFrame extends JFrame {
                         "        window.cefQuery({request: 'CALL_CONNECTED:' + data});\n" +
                         "      });\n" +
                         "      \n" +
-                        "      // Arama kabul edildi (agent cevapladı)\n" +
+                        "      // Call accepted (agent answered)\n" +
                         "      contact.onAccepted(function(contact) {\n" +
                         "        console.log('AWS CONNECT: CALL ACCEPTED!');\n" +
                         "        var data = JSON.stringify({contactId: contactId, type: 'accepted'});\n" +
                         "        window.cefQuery({request: 'CALL_ACCEPTED:' + data});\n" +
                         "      });\n" +
                         "      \n" +
-                        "      // Arama sonlandı\n" +
+                        "      // Call ended\n" +
                         "      contact.onEnded(function(contact) {\n" +
                         "        console.log('AWS CONNECT: CALL ENDED!');\n" +
                         "        window.currentContact = null;\n" +
@@ -300,7 +285,7 @@ public class MainFrame extends JFrame {
                         "      });\n" +
                         "    });\n" +
                         "    \n" +
-                        "    // Agent durumu event'leri\n" +
+                        "    // Agent state events\n" +
                         "    connect.agent(function(agent) {\n" +
                         "      console.log('AWS CONNECT: Agent connected');\n" +
                         "      window.currentAgent = agent;\n" +
@@ -312,7 +297,7 @@ public class MainFrame extends JFrame {
                         "        window.cefQuery({request: 'AGENT_STATE:' + newState});\n" +
                         "      });\n" +
                         "      \n" +
-                        "      // İlk durum\n" +
+                        "      // Initial state\n" +
                         "      var currentState = agent.getState().name;\n" +
                         "      console.log('AWS CONNECT: Initial agent state: ' + currentState);\n" +
                         "      window.cefQuery({request: 'AGENT_STATE:' + currentState});\n" +
@@ -329,20 +314,21 @@ public class MainFrame extends JFrame {
                 }
             }
         });
+
         // ==================== CALL CONTROL BUTTONS ====================
-        JButton acceptBtn = new JButton("✓ Cevapla");
+        JButton acceptBtn = new JButton("Accept");
         acceptBtn.setBackground(new Color(46, 204, 113));
         acceptBtn.setForeground(Color.WHITE);
         acceptBtn.setFont(new Font("Arial", Font.BOLD, 14));
         acceptBtn.setEnabled(false);
 
-        JButton rejectBtn = new JButton("✗ Reddet");
+        JButton rejectBtn = new JButton("Reject");
         rejectBtn.setBackground(new Color(231, 76, 60));
         rejectBtn.setForeground(Color.WHITE);
         rejectBtn.setFont(new Font("Arial", Font.BOLD, 14));
         rejectBtn.setEnabled(false);
 
-        JButton hangupBtn = new JButton("Kapat");
+        JButton hangupBtn = new JButton("Hang Up");
         hangupBtn.setBackground(new Color(192, 57, 43));
         hangupBtn.setForeground(Color.WHITE);
         hangupBtn.setFont(new Font("Arial", Font.BOLD, 14));
@@ -356,7 +342,7 @@ public class MainFrame extends JFrame {
         offlineBtn.setBackground(new Color(149, 165, 166));
         offlineBtn.setForeground(Color.WHITE);
 
-        // Aramayı kabul et
+        // Accept call
         acceptBtn.addActionListener(e -> {
             System.out.println("Accept button clicked");
             browser_.executeJavaScript(
@@ -366,7 +352,7 @@ public class MainFrame extends JFrame {
                 "}", browser_.getURL(), 0);
         });
 
-        // Aramayı reddet
+        // Reject call
         rejectBtn.addActionListener(e -> {
             System.out.println("Reject button clicked");
             browser_.executeJavaScript(
@@ -376,7 +362,7 @@ public class MainFrame extends JFrame {
                 "}", browser_.getURL(), 0);
         });
 
-        // Aramayı sonlandır
+        // End call
         hangupBtn.addActionListener(e -> {
             System.out.println("Hangup button clicked");
             browser_.executeJavaScript(
@@ -387,7 +373,7 @@ public class MainFrame extends JFrame {
                 "}", browser_.getURL(), 0);
         });
 
-        // Agent durumunu Available yap
+        // Set agent state to Available
         availableBtn.addActionListener(e -> {
             System.out.println("Setting agent to Available");
             browser_.executeJavaScript(
@@ -405,7 +391,7 @@ public class MainFrame extends JFrame {
                 "}", browser_.getURL(), 0);
         });
 
-        // Agent durumunu Offline yap
+        // Set agent state to Offline
         offlineBtn.addActionListener(e -> {
             System.out.println("Setting agent to Offline");
             browser_.executeJavaScript(
@@ -439,7 +425,7 @@ public class MainFrame extends JFrame {
             CefCookieManager cookieManager = CefCookieManager.getGlobalManager();
             if (cookieManager != null) {
                 boolean success = cookieManager.deleteCookies("", "");
-                System.out.println("Cookie temizleme durumu: " + success);
+                System.out.println("Cookie cleanup status: " + success);
             }
             browser_.loadURL(startURLAWS);
         });
@@ -458,7 +444,6 @@ public class MainFrame extends JFrame {
         topPanel.add(refreshBtn, BorderLayout.WEST);
         topPanel.add(logoutBtn, BorderLayout.EAST);
 
-
         address_.addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) {
@@ -468,14 +453,16 @@ public class MainFrame extends JFrame {
                 address_.requestFocus();
             }
         });
-// Sağ tıklama menüsünü kapat
+
+        // Disable right-click context menu
         client_.addContextMenuHandler(new CefContextMenuHandlerAdapter() {
             @Override
             public void onBeforeContextMenu(CefBrowser browser, CefFrame frame,
                                             CefContextMenuParams params, CefMenuModel model) {
-                model.clear(); // tüm context menüyü temizle
+                model.clear();
             }
         });
+
         client_.addFocusHandler(new CefFocusHandlerAdapter() {
             @Override
             public void onGotFocus(CefBrowser browser) {
@@ -492,72 +479,44 @@ public class MainFrame extends JFrame {
         });
 
         setTitle("Kloia");
-//        // Frame icon
-//        ImageIcon icon2 = new ImageIcon(getClass().getResource("/klogo.png"));
-//        setIconImage(icon2.getImage());
-//
-//        // ClassLoader ile yükleme
-//        java.net.URL iconURL = getClass().getClassLoader().getResource("klogo.png");
-//        if(iconURL != null) {
-//            ImageIcon icon = new ImageIcon(iconURL);
-//            setIconImage(icon.getImage());
-//        } else {
-//            System.err.println("Icon bulunamadı!");
-//        }
-
-// Fullscreen açmak için
-//        setExtendedState(JFrame.MAXIMIZED_BOTH);
-//        setUndecorated(true); // başlık çubuğunu kaldırır
-//        GraphicsEnvironment.getLocalGraphicsEnvironment()
-//                .getDefaultScreenDevice()
-//                .setFullScreenWindow(this);
 
         getContentPane().add(topPanel, BorderLayout.NORTH);
 
-        // CCP'yi gizlemek için browserUI_ boyutunu küçültebilir veya tamamen gizleyebilirsiniz
-        // browserUI_.setPreferredSize(new Dimension(1, 1)); // Minimum boyut - görünmez ama aktif
-        // browserUI_.setVisible(false); // Tamamen gizle (DİKKAT: Ses çalışmayabilir)
+        // ==================== MAIN LAYOUT ====================
+        // Center: numpad, Right: small CCP browser
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBackground(new Color(44, 62, 80));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        // ==================== NUMPAD PANEL ====================
+        // Numpad in center
         JPanel numpadPanel = createNumpadPanel();
-        getContentPane().add(numpadPanel, BorderLayout.EAST);
+        JPanel centerWrapper = new JPanel(new GridBagLayout());
+        centerWrapper.setBackground(new Color(44, 62, 80));
+        centerWrapper.add(numpadPanel);
+        mainPanel.add(centerWrapper, BorderLayout.CENTER);
 
-        getContentPane().add(browserUI_, BorderLayout.CENTER);
-        pack();
-//        setSize(800, 600);
-//        setExtendedState(JFrame.MAXIMIZED_BOTH);
-//        setBounds(GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds());
-//
-        GraphicsEnvironment env = GraphicsEnvironment.getLocalGraphicsEnvironment();
-        GraphicsDevice device = env.getDefaultScreenDevice();
-        Rectangle bounds = device.getDefaultConfiguration().getBounds();
-        setBounds(bounds);
+        // CCP browser on the right (small)
+        JPanel browserPanel = new JPanel(new BorderLayout());
+        browserPanel.setPreferredSize(new Dimension(350, 500));
+        browserPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(new Color(52, 73, 94), 2),
+            "AWS Connect CCP",
+            javax.swing.border.TitledBorder.CENTER,
+            javax.swing.border.TitledBorder.TOP,
+            new Font("Arial", Font.BOLD, 12),
+            Color.WHITE
+        ));
+        browserPanel.setBackground(new Color(44, 62, 80));
+        browserPanel.add(browserUI_, BorderLayout.CENTER);
+        mainPanel.add(browserPanel, BorderLayout.EAST);
+
+        getContentPane().add(mainPanel, BorderLayout.CENTER);
+        getContentPane().setBackground(new Color(44, 62, 80));
+
+        setSize(900, 650);
+        setLocationRelativeTo(null); // Center on screen
         setVisible(true);
 
-//        addWindowListener(new WindowAdapter() {
-//            @Override
-//            public void windowClosing(WindowEvent e) {
-//                CefApp.getInstance().dispose();
-//                dispose();
-//            }
-//        });
-
-//        addWindowListener(new WindowAdapter() {
-//            @Override
-//            public void windowClosing(WindowEvent e) {
-//                new Thread(() -> {
-//                    try {
-//                        if (!CefApp.getState().equals(CefApp.CefAppState.TERMINATED)) {
-//                            CefApp.getInstance().dispose();
-//                        }
-//                    } catch (Exception ex) {
-//                        ex.printStackTrace();
-//                    } finally {
-//                        SwingUtilities.invokeLater(() -> dispose());
-//                    }
-//                }).start();
-//            }
-//        });
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
@@ -566,31 +525,29 @@ public class MainFrame extends JFrame {
             }
         });
     }
+
     // ==================== EVENT HANDLERS ====================
 
     /**
-     * Gelen arama event'i - Arama geldiğinde çağrılır
+     * Called when an incoming call is detected
      */
     private void onIncomingCall(String callData) {
-        System.out.println("*** GELEN ARAMA ***");
+        System.out.println("*** INCOMING CALL ***");
         System.out.println("Call Data: " + callData);
 
-        // Butonları aktif et
+        // Enable buttons
         SwingUtilities.invokeLater(() -> {
             if (acceptButton != null) acceptButton.setEnabled(true);
             if (rejectButton != null) rejectButton.setEnabled(true);
             if (hangupButton != null) hangupButton.setEnabled(false);
-
-            // Burada müşteri kartı gösterebilirsiniz
-            // showCustomerCard(callData);
         });
     }
 
     /**
-     * Arama bağlandığında çağrılır
+     * Called when a call is connected
      */
     private void onCallConnected(String callData) {
-        System.out.println("*** ARAMA BAĞLANDI ***");
+        System.out.println("*** CALL CONNECTED ***");
         System.out.println("Call Data: " + callData);
 
         SwingUtilities.invokeLater(() -> {
@@ -601,65 +558,113 @@ public class MainFrame extends JFrame {
     }
 
     /**
-     * Arama sonlandığında çağrılır
+     * Called when a call ends
      */
     private void onCallEnded(String callData) {
-        System.out.println("*** ARAMA SONLANDI ***");
+        System.out.println("*** CALL ENDED ***");
         System.out.println("Call Data: " + callData);
 
         SwingUtilities.invokeLater(() -> {
             if (acceptButton != null) acceptButton.setEnabled(false);
             if (rejectButton != null) rejectButton.setEnabled(false);
             if (hangupButton != null) hangupButton.setEnabled(false);
-
-            // Müşteri kartını gizle
-            // hideCustomerCard();
         });
     }
 
     /**
-     * Agent durumu değiştiğinde çağrılır (Available, Busy, Offline vb.)
+     * Called when agent state changes (Available, Busy, Offline, etc.)
      */
     private void onAgentStateChange(String state) {
-        System.out.println("*** AGENT DURUMU DEĞİŞTİ: " + state + " ***");
+        System.out.println("*** AGENT STATE CHANGED: " + state + " ***");
     }
 
     // ==================== NUMPAD PANEL ====================
 
     /**
-     * Numpad paneli oluşturur - telefon tuş takımı gibi
+     * Creates the numpad panel - AWS Connect style
      */
     private JPanel createNumpadPanel() {
-        JPanel panel = new JPanel(new BorderLayout(5, 5));
-        panel.setBorder(BorderFactory.createTitledBorder("Tuş Takımı"));
-        panel.setPreferredSize(new Dimension(200, 350));
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBackground(new Color(35, 47, 62));
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(0, 115, 187), 2),
+            BorderFactory.createEmptyBorder(20, 25, 20, 25)
+        ));
+
+        // Title
+        JLabel titleLabel = new JLabel("Dial Pad");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        titleLabel.setForeground(Color.WHITE);
+        titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        panel.add(titleLabel, BorderLayout.NORTH);
 
         // Numpad grid (4x3)
-        JPanel gridPanel = new JPanel(new GridLayout(4, 3, 5, 5));
-        gridPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        JPanel gridPanel = new JPanel(new GridLayout(4, 3, 8, 8));
+        gridPanel.setBackground(new Color(35, 47, 62));
+        gridPanel.setBorder(BorderFactory.createEmptyBorder(15, 10, 15, 10));
 
-        String[] buttons = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"};
+        // Phone keypad format (with letters)
+        String[][] buttons = {
+            {"1", ""},
+            {"2", "ABC"},
+            {"3", "DEF"},
+            {"4", "GHI"},
+            {"5", "JKL"},
+            {"6", "MNO"},
+            {"7", "PQRS"},
+            {"8", "TUV"},
+            {"9", "WXYZ"},
+            {"*", ""},
+            {"0", "+"},
+            {"#", ""}
+        };
 
-        for (String label : buttons) {
-            JButton btn = new JButton(label);
-            btn.setFont(new Font("Arial", Font.BOLD, 24));
-            btn.setPreferredSize(new Dimension(55, 55));
+        for (String[] btnData : buttons) {
+            String digit = btnData[0];
+            String letters = btnData[1];
+
+            JButton btn = new JButton();
+            btn.setLayout(new BorderLayout());
+            btn.setPreferredSize(new Dimension(70, 70));
             btn.setBackground(new Color(52, 73, 94));
-            btn.setForeground(Color.WHITE);
             btn.setFocusPainted(false);
-            btn.setBorder(BorderFactory.createRaisedBevelBorder());
+            btn.setBorder(BorderFactory.createLineBorder(new Color(70, 90, 110), 1));
+            btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-            btn.addActionListener(e -> sendDtmfDigit(label));
+            // Digit label
+            JLabel digitLabel = new JLabel(digit);
+            digitLabel.setFont(new Font("Arial", Font.BOLD, 28));
+            digitLabel.setForeground(Color.WHITE);
+            digitLabel.setHorizontalAlignment(SwingConstants.CENTER);
 
-            // Hover efekti
+            // Letters label
+            JLabel lettersLabel = new JLabel(letters);
+            lettersLabel.setFont(new Font("Arial", Font.PLAIN, 9));
+            lettersLabel.setForeground(new Color(150, 150, 150));
+            lettersLabel.setHorizontalAlignment(SwingConstants.CENTER);
+
+            btn.add(digitLabel, BorderLayout.CENTER);
+            btn.add(lettersLabel, BorderLayout.SOUTH);
+
+            btn.addActionListener(e -> sendDtmfDigit(digit));
+
+            // Hover effect
             btn.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseEntered(MouseEvent e) {
-                    btn.setBackground(new Color(41, 128, 185));
+                    btn.setBackground(new Color(0, 115, 187));
                 }
                 @Override
                 public void mouseExited(MouseEvent e) {
                     btn.setBackground(new Color(52, 73, 94));
+                }
+                @Override
+                public void mousePressed(MouseEvent e) {
+                    btn.setBackground(new Color(0, 90, 150));
+                }
+                @Override
+                public void mouseReleased(MouseEvent e) {
+                    btn.setBackground(new Color(0, 115, 187));
                 }
             });
 
@@ -668,21 +673,14 @@ public class MainFrame extends JFrame {
 
         panel.add(gridPanel, BorderLayout.CENTER);
 
-        // Bilgi label'ı
-        JLabel infoLabel = new JLabel("<html><center>Görüşme sırasında<br>tuşlara basın</center></html>");
-        infoLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        infoLabel.setFont(new Font("Arial", Font.PLAIN, 11));
-        infoLabel.setForeground(Color.GRAY);
-        panel.add(infoLabel, BorderLayout.SOUTH);
-
         return panel;
     }
 
     /**
-     * CCP'deki numpad butonuna tıklama simüle eder
+     * Simulates clicking a numpad button in CCP
      */
     private void sendDtmfDigit(String digit) {
-        System.out.println("Numpad tuşu basıldı: " + digit);
+        System.out.println("Numpad button pressed: " + digit);
 
         String script =
             "(function() {\n" +
@@ -703,6 +701,9 @@ public class MainFrame extends JFrame {
 
     // ==================== UTILITY METHODS ====================
 
+    /**
+     * Recursively deletes a directory
+     */
     public static boolean deleteDir(File dir) {
         if (dir.isDirectory()) {
             for (File f : dir.listFiles()) {
@@ -711,65 +712,22 @@ public class MainFrame extends JFrame {
         }
         return dir.delete();
     }
-    public static void main(String[] args) throws UnsupportedPlatformException, CefInitializationException, IOException, InterruptedException {
 
-//        Path cachePath = Paths.get("jcef_cache");
-//        if (Files.exists(cachePath)) {
-//            try {
-//                Files.walk(cachePath)
-//                        .sorted(Comparator.reverseOrder())
-//                        .map(Path::toFile)
-//                        .forEach(File::delete);
-//                System.out.println("JCEF cache ve cookie temizlendi.");
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            }
-//        }
+    public static void main(String[] args) throws UnsupportedPlatformException, CefInitializationException, IOException, InterruptedException {
         String urlAWS = (args.length > 0) ? args[0] : System.getenv("AWSCONNECT_URL");
         if (urlAWS == null || urlAWS.isEmpty()) {
-            urlAWS = AWS_CONNECT_URL; // Varsayılan AWS Connect URL
+            urlAWS = AWS_CONNECT_URL; // Default AWS Connect URL
         }
 
         String url = (args.length > 0) ? args[1] : System.getenv("JVIEW_URL");
         if (url == null || url.isEmpty()) {
-//            url = "http://localhost:3000";
+            // url = "http://localhost:3000";
         }
 
-//        url = "https://www.google.com";
         boolean useOsr = false;
-        // EDT üzerinde başlat
-
         String finalUrlAWS = urlAWS;
         String finalUrl = url;
-//        SwingUtilities.invokeLater(() -> {
-//            try {
-//                new MainFrame(finalUrlAWS,finalUrl, useOsr, false, args);
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//            }
-//        });
-                new MainFrame(finalUrlAWS,finalUrl, useOsr, false, args);
 
-
-
-//        new MainFrame(url, useOsr, false, args);
+        new MainFrame(finalUrlAWS, finalUrl, useOsr, false, args);
     }
-
-//    public class CookieUtils {
-//
-//        public static void clearAllCookies() {
-//            // Varsayılan cookie manager
-//            CefCookieManager cookieManager = CefCookieManager.getGlobalManager();
-//            if (cookieManager != null) {
-//                // Tüm cookie’leri sil
-//                cookieManager.deleteCookies("", "", result -> {
-//                    if (result) {
-//                        System.out.println("Tüm cookie’ler silindi.");
-//                    } else {
-//                        System.out.println("Cookie silme başarısız.");
-//                    }
-//                });
-//            }
-//        }
-//    }
 }
