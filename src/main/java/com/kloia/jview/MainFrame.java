@@ -318,6 +318,50 @@ public class MainFrame extends JFrame {
                         "    });\n" +
                         "    \n" +
                         "    console.log('AWS CONNECT: Event listeners setup complete!');\n" +
+                        "    \n" +
+                        "    // Auto-click numpad button if not already on numpad screen\n" +
+                        "    setTimeout(function() {\n" +
+                        "      function clickNumpadButton() {\n" +
+                        "        var buttons = document.querySelectorAll('button');\n" +
+                        "        for (var i = 0; i < buttons.length; i++) {\n" +
+                        "          var btn = buttons[i];\n" +
+                        "          var text = btn.innerText.toLowerCase();\n" +
+                        "          var ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();\n" +
+                        "          if (text.indexOf('number') >= 0 || text.indexOf('numpad') >= 0 || text.indexOf('dialpad') >= 0 || text.indexOf('dial pad') >= 0 ||\n" +
+                        "              ariaLabel.indexOf('number') >= 0 || ariaLabel.indexOf('numpad') >= 0 || ariaLabel.indexOf('dialpad') >= 0) {\n" +
+                        "            console.log('AWS CONNECT: Clicking numpad button: ' + btn.innerText);\n" +
+                        "            btn.click();\n" +
+                        "            return true;\n" +
+                        "          }\n" +
+                        "        }\n" +
+                        "        // Also try to find by icon or class\n" +
+                        "        var dialpadBtn = document.querySelector('[class*=\"dialpad\"], [class*=\"numpad\"], [class*=\"numberpad\"]');\n" +
+                        "        if (dialpadBtn) {\n" +
+                        "          console.log('AWS CONNECT: Clicking numpad by class');\n" +
+                        "          dialpadBtn.click();\n" +
+                        "          return true;\n" +
+                        "        }\n" +
+                        "        return false;\n" +
+                        "      }\n" +
+                        "      \n" +
+                        "      // Check if numpad is already visible (look for digit buttons)\n" +
+                        "      var hasNumpad = false;\n" +
+                        "      var allBtns = document.querySelectorAll('button');\n" +
+                        "      for (var j = 0; j < allBtns.length; j++) {\n" +
+                        "        if (allBtns[j].innerText.trim() === '1' || allBtns[j].innerText.indexOf('1') === 0) {\n" +
+                        "          hasNumpad = true;\n" +
+                        "          break;\n" +
+                        "        }\n" +
+                        "      }\n" +
+                        "      \n" +
+                        "      if (!hasNumpad) {\n" +
+                        "        console.log('AWS CONNECT: Numpad not visible, trying to open it...');\n" +
+                        "        clickNumpadButton();\n" +
+                        "      } else {\n" +
+                        "        console.log('AWS CONNECT: Numpad already visible');\n" +
+                        "      }\n" +
+                        "    }, 2000);\n" +
+                        "    \n" +
                         "  } else {\n" +
                         "    console.log('AWS CONNECT: connect object not found, retrying in 2 seconds...');\n" +
                         "    setTimeout(arguments.callee, 2000);\n" +
