@@ -518,18 +518,9 @@ public class MainFrame extends JFrame {
         centerWrapper.add(numpadPanel);
         mainContentPanel.add(centerWrapper, BorderLayout.CENTER);
 
-        // CCP browser on the right (small)
+        // CCP browser hidden (but still active for CEF to work)
         JPanel browserPanel = new JPanel(new BorderLayout());
-        browserPanel.setPreferredSize(new Dimension(350, 500));
-        browserPanel.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createLineBorder(new Color(52, 73, 94), 2),
-            "AWS Connect CCP",
-            javax.swing.border.TitledBorder.CENTER,
-            javax.swing.border.TitledBorder.TOP,
-            new Font("Arial", Font.BOLD, 12),
-            Color.WHITE
-        ));
-        browserPanel.setBackground(new Color(44, 62, 80));
+        browserPanel.setPreferredSize(new Dimension(331, 331));
         browserPanel.add(browserUI_, BorderLayout.CENTER);
         mainContentPanel.add(browserPanel, BorderLayout.EAST);
 
@@ -619,8 +610,8 @@ public class MainFrame extends JFrame {
     private JDialog createSplashDialog() {
         JDialog dialog = new JDialog(this, "Loading...", false); // Non-modal
         dialog.setUndecorated(true);
-        dialog.setSize(450, 250);
-        dialog.setLocationRelativeTo(this);
+        dialog.setSize(getWidth(), getHeight());
+        dialog.setLocation(getLocation());
 
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBackground(new Color(44, 62, 80));
