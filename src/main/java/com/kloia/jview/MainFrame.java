@@ -135,6 +135,8 @@ public class MainFrame extends JFrame {
                 } else if (request.startsWith("AGENT_STATE:")) {
                     String state = request.substring("AGENT_STATE:".length());
                     onAgentStateChange(state);
+                } else if (request.equals("NUMPAD_READY")) {
+                    onNumpadReady();
                 }
 
                 callback.success("Event received");
@@ -357,8 +359,22 @@ public class MainFrame extends JFrame {
                         "      if (!hasNumpad) {\n" +
                         "        console.log('AWS CONNECT: Numpad not visible, trying to open it...');\n" +
                         "        clickNumpadButton();\n" +
+                        "        // Wait for numpad to appear then notify Java\n" +
+                        "        setTimeout(function checkNumpad() {\n" +
+                        "          var btns = document.querySelectorAll('button');\n" +
+                        "          for (var k = 0; k < btns.length; k++) {\n" +
+                        "            if (btns[k].innerText.trim() === '1' || btns[k].innerText.indexOf('1') === 0) {\n" +
+                        "              console.log('AWS CONNECT: Numpad is now ready!');\n" +
+                        "              window.cefQuery({request: 'NUMPAD_READY'});\n" +
+                        "              return;\n" +
+                        "            }\n" +
+                        "          }\n" +
+                        "          console.log('AWS CONNECT: Waiting for numpad...');\n" +
+                        "          setTimeout(checkNumpad, 500);\n" +
+                        "        }, 1000);\n" +
                         "      } else {\n" +
                         "        console.log('AWS CONNECT: Numpad already visible');\n" +
+                        "        window.cefQuery({request: 'NUMPAD_READY'});\n" +
                         "      }\n" +
                         "    }, 2000);\n" +
                         "    \n" +
@@ -639,11 +655,14 @@ public class MainFrame extends JFrame {
      */
     private void onAgentStateChange(String state) {
         System.out.println("*** AGENT STATE CHANGED: " + state + " ***");
+    }
 
-        // When we receive the first agent state, CCP is ready
-        if (splashDialog != null && splashDialog.isVisible()) {
-            onCCPReady();
-        }
+    /**
+     * Called when CCP numpad is ready and visible
+     */
+    private void onNumpadReady() {
+        System.out.println("*** NUMPAD READY ***");
+        onCCPReady();
     }
 
     // ==================== SPLASH SCREEN ====================
