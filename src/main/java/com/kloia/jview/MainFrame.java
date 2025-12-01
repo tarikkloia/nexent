@@ -122,7 +122,7 @@ public class MainFrame extends JFrame {
             @Override
             public boolean onQuery(CefBrowser browser, CefFrame frame, long queryId, String request,
                                   boolean persistent, CefQueryCallback callback) {
-                System.out.println("===========================================");
+                    System.out.println("===========================================");
                 System.out.println("EVENT FROM AWS CONNECT: " + request);
                 System.out.println("===========================================");
 
@@ -253,30 +253,69 @@ public class MainFrame extends JFrame {
                         "    // Global contact reference for Java button control\n" +
                         "    window.currentContact = null;\n" +
                         "    \n" +
+                        "    // Helper function to notify Java about incoming call\n" +
+                        "    function notifyIncomingCall(contact) {\n" +
+                        "      var contactId = contact.getContactId();\n" +
+                        "      var attr = contact.getAttributes();\n" +
+                        "      var queue = contact.getQueue();\n" +
+                        "      var queueName = queue ? queue.name : 'Unknown';\n" +
+                        "      var conn = contact.getInitialConnection();\n" +
+                        "      var phoneNumber = 'Unknown';\n" +
+                        "      try {\n" +
+                        "        if (conn && conn.getEndpoint()) phoneNumber = conn.getEndpoint().phoneNumber || 'Unknown';\n" +
+                        "      } catch(e) { console.log('AWS CONNECT: Error getting phone number: ' + e); }\n" +
+                        "      var data = JSON.stringify({contactId: contactId, phoneNumber: phoneNumber, queue: queueName, type: 'incoming',attribute:attr});\n" +
+                        "      console.log('AWS CONNECT: Notifying Java - INCOMING_CALL: ' + data);\n" +
+                        "      window.cefQuery({request: 'INCOMING_CALL:' + data});\n" +
+                        "    }\n" +
+                        "    \n" +
                         "    // Contact (call) events\n" +
                         "    connect.contact(function(contact) {\n" +
-                        "      console.log('AWS CONNECT: New contact detected!');\n" +
+                        "      var contactId = contact.getContactId();\n" +
+                        "      var contactState = contact.getStatus().type;\n" +
+                        "      var contactType = contact.getType();\n" +
+                        "      console.log('AWS CONNECT: ========== NEW CONTACT ==========');\n" +
+                        "      console.log('AWS CONNECT: Contact ID: ' + contactId);\n" +
+                        "      console.log('AWS CONNECT: Contact State: ' + contactState);\n" +
+                        "      console.log('AWS CONNECT: Contact Type: ' + contactType);\n" +
+                        "      console.log('AWS CONNECT: ================================');\n" +
                         "      window.currentContact = contact;\n" +
                         "      \n" +
-                        "      var contactId = contact.getContactId();\n" +
                         "      var queue = contact.getQueue();\n" +
                         "      var queueName = queue ? queue.name : 'Unknown';\n" +
                         "      \n" +
-                        "      // Incoming call\n" +
+                        "      // Check if this is already an incoming call (state check)\n" +
+                        "      if (contactState === 'incoming' || contactState === 'connecting') {\n" +
+                        "        console.log('AWS CONNECT: Contact arrived in ' + contactState + ' state - treating as INCOMING');\n" +
+                        "        notifyIncomingCall(contact);\n" +
+                        "      }\n" +
+                        "      \n" +
+                        "      // Incoming call event\n" +
                         "      contact.onIncoming(function(contact) {\n" +
-                        "        console.log('AWS CONNECT: INCOMING CALL!');\n" +
+                        "        console.log('AWS CONNECT: onIncoming event fired!');\n" +
                         "        window.currentContact = contact;\n" +
-                        "        var conn = contact.getInitialConnection();\n" +
-                        "        var phoneNumber = conn ? conn.getEndpoint().phoneNumber : 'Unknown';\n" +
-                        "        var data = JSON.stringify({contactId: contactId, phoneNumber: phoneNumber, queue: queueName, type: 'incoming'});\n" +
-                        "        window.cefQuery({request: 'INCOMING_CALL:' + data});\n" +
+                        "        notifyIncomingCall(contact);\n" +
+                        "      });\n" +
+                        "      \n" +
+                        "      // Refresh event - fires when contact state changes\n" +
+                        "      contact.onRefresh(function(contact) {\n" +
+                        "        var newState = contact.getStatus().type;\n" +
+                        "        console.log('AWS CONNECT: onRefresh - state: ' + newState);\n" +
+                        "        window.currentContact = contact;\n" +
+                        "        // If state changed to incoming, notify\n" +
+                        "        if (newState === 'incoming') {\n" +
+                        "          notifyIncomingCall(contact);\n" +
+                        "        }\n" +
                         "      });\n" +
                         "      \n" +
                         "      // Call connected\n" +
                         "      contact.onConnected(function(contact) {\n" +
                         "        console.log('AWS CONNECT: CALL CONNECTED!');\n" +
                         "        var conn = contact.getInitialConnection();\n" +
-                        "        var phoneNumber = conn ? conn.getEndpoint().phoneNumber : 'Unknown';\n" +
+                        "        var phoneNumber = 'Unknown';\n" +
+                        "        try {\n" +
+                        "          if (conn && conn.getEndpoint()) phoneNumber = conn.getEndpoint().phoneNumber || 'Unknown';\n" +
+                        "        } catch(e) {}\n" +
                         "        var data = JSON.stringify({contactId: contactId, phoneNumber: phoneNumber, queue: queueName, type: 'connected'});\n" +
                         "        window.cefQuery({request: 'CALL_CONNECTED:' + data});\n" +
                         "      });\n" +
@@ -629,7 +668,9 @@ public class MainFrame extends JFrame {
 
         // CCP browser hidden (but still active for CEF to work)
         JPanel browserPanel = new JPanel(new BorderLayout());
-        browserPanel.setPreferredSize(new Dimension(331, 331));
+        browserPanel.setPreferredSize(new Dimension(1, 1));
+        browserPanel.setLocation(500,500);
+//        browserPanel.setPreferredSize(new Dimension(331, 331));
         browserPanel.add(browserUI_, BorderLayout.CENTER);
         mainContentPanel.add(browserPanel, BorderLayout.EAST);
 
