@@ -199,48 +199,12 @@ public class MainFrame extends JFrame {
                     System.out.println("Login page detected, executing auto-login script...");
                     updateSplashStatus("Signing in...");
 
-                    String script = "setTimeout(function() {\n" +
-                        "  console.log('AUTO LOGIN: Starting...');\n" +
-                        "  \n" +
-                        "  // AWS Identity Center specific fields\n" +
-                        "  var userField = document.getElementById('wdc_username');\n" +
-                        "  var passField = document.getElementById('wdc_password');\n" +
-                        "  \n" +
-                        "  console.log('AUTO LOGIN: userField=' + (userField ? 'found' : 'null') + ', passField=' + (passField ? 'found' : 'null'));\n" +
-                        "  \n" +
-                        "  if (userField && passField) {\n" +
-                        "    userField.focus();\n" +
-                        "    userField.value = '" + AWS_USERNAME + "';\n" +
-                        "    userField.dispatchEvent(new Event('input', {bubbles: true}));\n" +
-                        "    userField.dispatchEvent(new Event('change', {bubbles: true}));\n" +
-                        "    console.log('AUTO LOGIN: Username filled: ' + userField.value);\n" +
-                        "    \n" +
-                        "    passField.focus();\n" +
-                        "    passField.value = '" + AWS_PASSWORD + "';\n" +
-                        "    passField.dispatchEvent(new Event('input', {bubbles: true}));\n" +
-                        "    passField.dispatchEvent(new Event('change', {bubbles: true}));\n" +
-                        "    console.log('AUTO LOGIN: Password filled');\n" +
-                        "    \n" +
-                        "    setTimeout(function() {\n" +
-                        "      var btns = document.querySelectorAll('button');\n" +
-                        "      console.log('AUTO LOGIN: Found ' + btns.length + ' buttons');\n" +
-                        "      for (var j = 0; j < btns.length; j++) {\n" +
-                        "        console.log('AUTO LOGIN: Button ' + j + ' text=' + btns[j].innerText);\n" +
-                        "        var txt = btns[j].innerText.toLowerCase();\n" +
-                        "        if (txt.indexOf('sign in') >= 0 || txt.indexOf('login') >= 0 || txt.indexOf('submit') >= 0) {\n" +
-                        "          console.log('AUTO LOGIN: Clicking button: ' + btns[j].innerText);\n" +
-                        "          btns[j].click();\n" +
-                        "          break;\n" +
-                        "        }\n" +
-                        "      }\n" +
-                        "    }, 500);\n" +
-                        "  } else {\n" +
-                        "    console.log('AUTO LOGIN: Fields not found, retrying in 2 seconds...');\n" +
-                        "    setTimeout(arguments.callee, 2000);\n" +
-                        "  }\n" +
-                        "}, 3000);";
-
-                    browser.executeJavaScript(script, url, 0);
+                    String script = loadScript("scripts/autoLogin.js");
+                    if (script != null) {
+                        script = script.replace("{{USERNAME}}", AWS_USERNAME)
+                                       .replace("{{PASSWORD}}", AWS_PASSWORD);
+                        browser.executeJavaScript(script, url, 0);
+                    }
                 }
 
                 // Add AWS Connect Streams event listeners when CCP is loaded
@@ -290,68 +254,31 @@ public class MainFrame extends JFrame {
         // Accept call
         acceptBtn.addActionListener(e -> {
             System.out.println("Accept button clicked");
-            browser_.executeJavaScript(
-                "if (window.currentContact) { " +
-                "  window.currentContact.accept(); " +
-                "  console.log('Call accepted via Java button'); " +
-                "}", browser_.getURL(), 0);
+            executeScript("scripts/acceptCall.js");
         });
 
         // Reject call
         rejectBtn.addActionListener(e -> {
             System.out.println("Reject button clicked");
-            browser_.executeJavaScript(
-                "if (window.currentContact) { " +
-                "  window.currentContact.reject(); " +
-                "  console.log('Call rejected via Java button'); " +
-                "}", browser_.getURL(), 0);
+            executeScript("scripts/rejectCall.js");
         });
 
         // End call
         hangupBtn.addActionListener(e -> {
             System.out.println("Hangup button clicked");
-            browser_.executeJavaScript(
-                "if (window.currentContact) { " +
-                "  var conn = window.currentContact.getAgentConnection(); " +
-                "  if (conn) conn.destroy(); " +
-                "  console.log('Call ended via Java button'); " +
-                "}", browser_.getURL(), 0);
+            executeScript("scripts/hangupCall.js");
         });
 
         // Set agent state to Available
         availableBtn.addActionListener(e -> {
             System.out.println("Setting agent to Available");
-            browser_.executeJavaScript(
-                "if (typeof connect !== 'undefined') { " +
-                "  connect.agent(function(agent) { " +
-                "    var states = agent.getAgentStates(); " +
-                "    var availableState = states.find(function(s) { return s.name === 'Available'; }); " +
-                "    if (availableState) { " +
-                "      agent.setState(availableState, { " +
-                "        success: function() { console.log('Agent set to Available'); }, " +
-                "        failure: function() { console.log('Failed to set Available'); } " +
-                "      }); " +
-                "    } " +
-                "  }); " +
-                "}", browser_.getURL(), 0);
+            executeScript("scripts/setAgentAvailable.js");
         });
 
         // Set agent state to Offline
         offlineBtn.addActionListener(e -> {
             System.out.println("Setting agent to Offline");
-            browser_.executeJavaScript(
-                "if (typeof connect !== 'undefined') { " +
-                "  connect.agent(function(agent) { " +
-                "    var states = agent.getAgentStates(); " +
-                "    var offlineState = states.find(function(s) { return s.name === 'Offline'; }); " +
-                "    if (offlineState) { " +
-                "      agent.setState(offlineState, { " +
-                "        success: function() { console.log('Agent set to Offline'); }, " +
-                "        failure: function() { console.log('Failed to set Offline'); } " +
-                "      }); " +
-                "    } " +
-                "  }); " +
-                "}", browser_.getURL(), 0);
+            executeScript("scripts/setAgentOffline.js");
         });
 
         // Store buttons as instance variables for enabling/disabling
@@ -849,51 +776,7 @@ public class MainFrame extends JFrame {
      */
     private void initiateOutboundCall(String phoneNumber) {
         System.out.println("Initiating outbound call to: " + phoneNumber);
-
-        String script =
-            "(function() {\n" +
-            "  console.log('OUTBOUND CALL: Dialing " + phoneNumber + "');\n" +
-            "  \n" +
-            "  if (typeof connect === 'undefined') {\n" +
-            "    console.log('OUTBOUND CALL: connect object not found');\n" +
-            "    return;\n" +
-            "  }\n" +
-            "  \n" +
-            "  // First, fill the phone number in CCP input field\n" +
-            "  var inputs = document.querySelectorAll('input[type=\"tel\"], input[type=\"text\"]');\n" +
-            "  for (var i = 0; i < inputs.length; i++) {\n" +
-            "    var input = inputs[i];\n" +
-            "    var placeholder = (input.placeholder || '').toLowerCase();\n" +
-            "    var ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();\n" +
-            "    if (placeholder.indexOf('number') >= 0 || placeholder.indexOf('phone') >= 0 || \n" +
-            "        ariaLabel.indexOf('number') >= 0 || ariaLabel.indexOf('phone') >= 0) {\n" +
-            "      input.value = '" + phoneNumber + "';\n" +
-            "      input.dispatchEvent(new Event('input', {bubbles: true}));\n" +
-            "      input.dispatchEvent(new Event('change', {bubbles: true}));\n" +
-            "      console.log('OUTBOUND CALL: Phone number filled in CCP input');\n" +
-            "      break;\n" +
-            "    }\n" +
-            "  }\n" +
-            "  \n" +
-            "  // Then click the call/dial button\n" +
-            "  setTimeout(function() {\n" +
-            "    var buttons = document.querySelectorAll('button');\n" +
-            "    for (var j = 0; j < buttons.length; j++) {\n" +
-            "      var btn = buttons[j];\n" +
-            "      var text = (btn.innerText || '').toLowerCase();\n" +
-            "      var ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();\n" +
-            "      if (text.indexOf('call') >= 0 || text.indexOf('dial') >= 0 || \n" +
-            "          ariaLabel.indexOf('call') >= 0 || ariaLabel.indexOf('dial') >= 0) {\n" +
-            "        console.log('OUTBOUND CALL: Clicking dial button');\n" +
-            "        btn.click();\n" +
-            "        return;\n" +
-            "      }\n" +
-            "    }\n" +
-            "    console.log('OUTBOUND CALL: Dial button not found');\n" +
-            "  }, 500);\n" +
-            "})();\n";
-
-        browser_.executeJavaScript(script, browser_.getURL(), 0);
+        executeScriptWithParams("scripts/outboundCall.js", "{{PHONE_NUMBER}}", phoneNumber);
     }
 
     /**
@@ -901,22 +784,7 @@ public class MainFrame extends JFrame {
      */
     private void sendDtmfDigit(String digit) {
         System.out.println("Numpad button pressed: " + digit);
-
-        String script =
-            "(function() {\n" +
-            "  var allButtons = document.querySelectorAll('button');\n" +
-            "  for (var i = 0; i < allButtons.length; i++) {\n" +
-            "    var btn = allButtons[i];\n" +
-            "    var text = btn.innerText.trim();\n" +
-            "    if (text === '" + digit + "' || text.indexOf('" + digit + "') === 0) {\n" +
-            "      btn.click();\n" +
-            "      console.log('DTMF: " + digit + "');\n" +
-            "      return;\n" +
-            "    }\n" +
-            "  }\n" +
-            "})();\n";
-
-        browser_.executeJavaScript(script, browser_.getURL(), 0);
+        executeScriptWithParams("scripts/sendDtmf.js", "{{DIGIT}}", digit);
     }
 
     // ==================== UTILITY METHODS ====================
@@ -936,6 +804,27 @@ public class MainFrame extends JFrame {
         } catch (IOException e) {
             System.err.println("Error loading script: " + resourcePath + " - " + e.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Executes a JavaScript file from resources
+     */
+    private void executeScript(String resourcePath) {
+        String script = loadScript(resourcePath);
+        if (script != null) {
+            browser_.executeJavaScript(script, browser_.getURL(), 0);
+        }
+    }
+
+    /**
+     * Executes a JavaScript file with parameter replacement
+     */
+    private void executeScriptWithParams(String resourcePath, String placeholder, String value) {
+        String script = loadScript(resourcePath);
+        if (script != null) {
+            script = script.replace(placeholder, value);
+            browser_.executeJavaScript(script, browser_.getURL(), 0);
         }
     }
 
