@@ -666,13 +666,21 @@ public class MainFrame extends JFrame {
         centerWrapper.add(numpadPanel);
         mainContentPanel.add(centerWrapper, BorderLayout.CENTER);
 
+//        // CCP browser in a separate off-screen window (must be visible for CEF to work)
+//        JWindow browserWindow = new JWindow();
+//        browserWindow.setSize(400, 400);
+//        browserWindow.setLocation(-500, -500); // Off-screen
+//        browserWindow.add(browserUI_);
+//        browserWindow.setVisible(true);
+
         // CCP browser hidden (but still active for CEF to work)
         JPanel browserPanel = new JPanel(new BorderLayout());
-        browserPanel.setPreferredSize(new Dimension(1, 1));
+        browserPanel.setPreferredSize(new Dimension(400, 400));
         browserPanel.setLocation(500,500);
 //        browserPanel.setPreferredSize(new Dimension(331, 331));
         browserPanel.add(browserUI_, BorderLayout.CENTER);
         mainContentPanel.add(browserPanel, BorderLayout.EAST);
+
 
         // Add main content to frame
         getContentPane().add(mainContentPanel, BorderLayout.CENTER);
