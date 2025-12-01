@@ -20,8 +20,13 @@ import org.cef.network.CefCookieManager;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.stream.Collectors;
 
 public class MainFrame extends JFrame {
     private static final long serialVersionUID = -5570653778104813836L;
@@ -243,191 +248,12 @@ public class MainFrame extends JFrame {
                     System.out.println("AWS Connect CCP loaded, adding event listeners...");
                     updateSplashStatus("Loading AWS Connect CCP...");
 
-                    String connectEventsScript = "setTimeout(function() {\n" +
-                        "  console.log('AWS CONNECT: Setting up event listeners...');\n" +
-                        "  \n" +
-                        "  // Check if connect global object exists\n" +
-                        "  if (typeof connect !== 'undefined' && connect.contact) {\n" +
-                        "    console.log('AWS CONNECT: connect object found, subscribing to events...');\n" +
-                        "    \n" +
-                        "    // Global contact reference for Java button control\n" +
-                        "    window.currentContact = null;\n" +
-                        "    \n" +
-                        "    // Helper function to notify Java about incoming call\n" +
-                        "    function notifyIncomingCall(contact) {\n" +
-                        "      var contactId = contact.getContactId();\n" +
-                        "      var attr = contact.getAttributes();\n" +
-                        "      var queue = contact.getQueue();\n" +
-                        "      var queueName = queue ? queue.name : 'Unknown';\n" +
-                        "      var conn = contact.getInitialConnection();\n" +
-                        "      var phoneNumber = 'Unknown';\n" +
-                        "      try {\n" +
-                        "        if (conn && conn.getEndpoint()) phoneNumber = conn.getEndpoint().phoneNumber || 'Unknown';\n" +
-                        "      } catch(e) { console.log('AWS CONNECT: Error getting phone number: ' + e); }\n" +
-                        "      var data = JSON.stringify({contactId: contactId, phoneNumber: phoneNumber, queue: queueName, type: 'incoming',attribute:attr});\n" +
-                        "      console.log('AWS CONNECT: Notifying Java - INCOMING_CALL: ' + data);\n" +
-                        "      window.cefQuery({request: 'INCOMING_CALL:' + data});\n" +
-                        "    }\n" +
-                        "    \n" +
-                        "    // Contact (call) events\n" +
-                        "    connect.contact(function(contact) {\n" +
-                        "      var contactId = contact.getContactId();\n" +
-                        "      var contactState = contact.getStatus().type;\n" +
-                        "      var contactType = contact.getType();\n" +
-                        "      console.log('AWS CONNECT: ========== NEW CONTACT ==========');\n" +
-                        "      console.log('AWS CONNECT: Contact ID: ' + contactId);\n" +
-                        "      console.log('AWS CONNECT: Contact State: ' + contactState);\n" +
-                        "      console.log('AWS CONNECT: Contact Type: ' + contactType);\n" +
-                        "      console.log('AWS CONNECT: ================================');\n" +
-                        "      window.currentContact = contact;\n" +
-                        "      \n" +
-                        "      var queue = contact.getQueue();\n" +
-                        "      var queueName = queue ? queue.name : 'Unknown';\n" +
-                        "      \n" +
-                        "      // Check if this is already an incoming call (state check)\n" +
-                        "      if (contactState === 'incoming' || contactState === 'connecting') {\n" +
-                        "        console.log('AWS CONNECT: Contact arrived in ' + contactState + ' state - treating as INCOMING');\n" +
-                        "        notifyIncomingCall(contact);\n" +
-                        "      }\n" +
-                        "      \n" +
-                        "      // Incoming call event\n" +
-                        "      contact.onIncoming(function(contact) {\n" +
-                        "        console.log('AWS CONNECT: onIncoming event fired!');\n" +
-                        "        window.currentContact = contact;\n" +
-                        "        notifyIncomingCall(contact);\n" +
-                        "      });\n" +
-                        "      \n" +
-                        "      // Refresh event - fires when contact state changes\n" +
-                        "      contact.onRefresh(function(contact) {\n" +
-                        "        var newState = contact.getStatus().type;\n" +
-                        "        console.log('AWS CONNECT: onRefresh - state: ' + newState);\n" +
-                        "        window.currentContact = contact;\n" +
-                        "        // If state changed to incoming, notify\n" +
-                        "        if (newState === 'incoming') {\n" +
-                        "          notifyIncomingCall(contact);\n" +
-                        "        }\n" +
-                        "      });\n" +
-                        "      \n" +
-                        "      // Call connected\n" +
-                        "      contact.onConnected(function(contact) {\n" +
-                        "        console.log('AWS CONNECT: CALL CONNECTED!');\n" +
-                        "        var conn = contact.getInitialConnection();\n" +
-                        "        var phoneNumber = 'Unknown';\n" +
-                        "        try {\n" +
-                        "          if (conn && conn.getEndpoint()) phoneNumber = conn.getEndpoint().phoneNumber || 'Unknown';\n" +
-                        "        } catch(e) {}\n" +
-                        "        var data = JSON.stringify({contactId: contactId, phoneNumber: phoneNumber, queue: queueName, type: 'connected'});\n" +
-                        "        window.cefQuery({request: 'CALL_CONNECTED:' + data});\n" +
-                        "      });\n" +
-                        "      \n" +
-                        "      // Call accepted (agent answered)\n" +
-                        "      contact.onAccepted(function(contact) {\n" +
-                        "        console.log('AWS CONNECT: CALL ACCEPTED!');\n" +
-                        "        var data = JSON.stringify({contactId: contactId, type: 'accepted'});\n" +
-                        "        window.cefQuery({request: 'CALL_ACCEPTED:' + data});\n" +
-                        "      });\n" +
-                        "      \n" +
-                        "      // Call ended\n" +
-                        "      contact.onEnded(function(contact) {\n" +
-                        "        console.log('AWS CONNECT: CALL ENDED!');\n" +
-                        "        window.currentContact = null;\n" +
-                        "        var data = JSON.stringify({contactId: contactId, type: 'ended'});\n" +
-                        "        window.cefQuery({request: 'CALL_ENDED:' + data});\n" +
-                        "      });\n" +
-                        "      \n" +
-                        "      // Missed call\n" +
-                        "      contact.onMissed(function(contact) {\n" +
-                        "        console.log('AWS CONNECT: CALL MISSED!');\n" +
-                        "        window.currentContact = null;\n" +
-                        "        var data = JSON.stringify({contactId: contactId, type: 'missed'});\n" +
-                        "        window.cefQuery({request: 'CALL_MISSED:' + data});\n" +
-                        "      });\n" +
-                        "    });\n" +
-                        "    \n" +
-                        "    // Agent state events\n" +
-                        "    connect.agent(function(agent) {\n" +
-                        "      console.log('AWS CONNECT: Agent connected');\n" +
-                        "      window.currentAgent = agent;\n" +
-                        "      \n" +
-                        "      agent.onStateChange(function(agentStateChange) {\n" +
-                        "        var newState = agentStateChange.newState;\n" +
-                        "        var oldState = agentStateChange.oldState;\n" +
-                        "        console.log('AWS CONNECT: Agent state changed from ' + oldState + ' to ' + newState);\n" +
-                        "        window.cefQuery({request: 'AGENT_STATE:' + newState});\n" +
-                        "      });\n" +
-                        "      \n" +
-                        "      // Initial state\n" +
-                        "      var currentState = agent.getState().name;\n" +
-                        "      console.log('AWS CONNECT: Initial agent state: ' + currentState);\n" +
-                        "      window.cefQuery({request: 'AGENT_STATE:' + currentState});\n" +
-                        "    });\n" +
-                        "    \n" +
-                        "    console.log('AWS CONNECT: Event listeners setup complete!');\n" +
-                        "    \n" +
-                        "    // Auto-click numpad button if not already on numpad screen\n" +
-                        "    setTimeout(function() {\n" +
-                        "      function clickNumpadButton() {\n" +
-                        "        var buttons = document.querySelectorAll('button');\n" +
-                        "        for (var i = 0; i < buttons.length; i++) {\n" +
-                        "          var btn = buttons[i];\n" +
-                        "          var text = btn.innerText.toLowerCase();\n" +
-                        "          var ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();\n" +
-                        "          if (text.indexOf('number') >= 0 || text.indexOf('numpad') >= 0 || text.indexOf('dialpad') >= 0 || text.indexOf('dial pad') >= 0 ||\n" +
-                        "              ariaLabel.indexOf('number') >= 0 || ariaLabel.indexOf('numpad') >= 0 || ariaLabel.indexOf('dialpad') >= 0) {\n" +
-                        "            console.log('AWS CONNECT: Clicking numpad button: ' + btn.innerText);\n" +
-                        "            btn.click();\n" +
-                        "            return true;\n" +
-                        "          }\n" +
-                        "        }\n" +
-                        "        // Also try to find by icon or class\n" +
-                        "        var dialpadBtn = document.querySelector('[class*=\"dialpad\"], [class*=\"numpad\"], [class*=\"numberpad\"]');\n" +
-                        "        if (dialpadBtn) {\n" +
-                        "          console.log('AWS CONNECT: Clicking numpad by class');\n" +
-                        "          dialpadBtn.click();\n" +
-                        "          return true;\n" +
-                        "        }\n" +
-                        "        return false;\n" +
-                        "      }\n" +
-                        "      \n" +
-                        "      // Check if numpad is already visible (look for digit buttons)\n" +
-                        "      var hasNumpad = false;\n" +
-                        "      var allBtns = document.querySelectorAll('button');\n" +
-                        "      for (var j = 0; j < allBtns.length; j++) {\n" +
-                        "        if (allBtns[j].innerText.trim() === '1' || allBtns[j].innerText.indexOf('1') === 0) {\n" +
-                        "          hasNumpad = true;\n" +
-                        "          break;\n" +
-                        "        }\n" +
-                        "      }\n" +
-                        "      \n" +
-                        "      if (!hasNumpad) {\n" +
-                        "        console.log('AWS CONNECT: Numpad not visible, trying to open it...');\n" +
-                        "        clickNumpadButton();\n" +
-                        "        // Wait for numpad to appear then notify Java\n" +
-                        "        setTimeout(function checkNumpad() {\n" +
-                        "          var btns = document.querySelectorAll('button');\n" +
-                        "          for (var k = 0; k < btns.length; k++) {\n" +
-                        "            if (btns[k].innerText.trim() === '1' || btns[k].innerText.indexOf('1') === 0) {\n" +
-                        "              console.log('AWS CONNECT: Numpad is now ready!');\n" +
-                        "              window.cefQuery({request: 'NUMPAD_READY'});\n" +
-                        "              return;\n" +
-                        "            }\n" +
-                        "          }\n" +
-                        "          console.log('AWS CONNECT: Waiting for numpad...');\n" +
-                        "          setTimeout(checkNumpad, 500);\n" +
-                        "        }, 1000);\n" +
-                        "      } else {\n" +
-                        "        console.log('AWS CONNECT: Numpad already visible');\n" +
-                        "        window.cefQuery({request: 'NUMPAD_READY'});\n" +
-                        "      }\n" +
-                        "    }, 2000);\n" +
-                        "    \n" +
-                        "  } else {\n" +
-                        "    console.log('AWS CONNECT: connect object not found, retrying in 2 seconds...');\n" +
-                        "    setTimeout(arguments.callee, 2000);\n" +
-                        "  }\n" +
-                        "}, 3000);";
-
-                    browser.executeJavaScript(connectEventsScript, url, 0);
+                    String connectEventsScript = loadScript("scripts/connectEventsScript.js");
+                    if (connectEventsScript != null) {
+                        browser.executeJavaScript(connectEventsScript, url, 0);
+                    } else {
+                        System.err.println("Failed to load connectEventsScript.js");
+                    }
                 }
             }
         });
@@ -1094,6 +920,24 @@ public class MainFrame extends JFrame {
     }
 
     // ==================== UTILITY METHODS ====================
+
+    /**
+     * Loads a JavaScript file from resources
+     */
+    private String loadScript(String resourcePath) {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+            if (is == null) {
+                System.err.println("Script not found: " + resourcePath);
+                return null;
+            }
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                return reader.lines().collect(Collectors.joining("\n"));
+            }
+        } catch (IOException e) {
+            System.err.println("Error loading script: " + resourcePath + " - " + e.getMessage());
+            return null;
+        }
+    }
 
     /**
      * Recursively deletes a directory
