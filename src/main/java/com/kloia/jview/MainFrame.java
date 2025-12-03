@@ -45,9 +45,17 @@ public class MainFrame extends JFrame {
     private JButton offlineButton;
     private JButton refreshButton;
     private JButton logoutButton;
+    private JButton testButton;
 
     // Numpad panel reference
     private JPanel numpadPanel;
+
+    // Customer info card components
+    private JPanel customerCardPanel;
+    private JLabel customerNameLabel;
+    private JLabel customerPhoneLabel;
+    private boolean isCallActive = false;
+    private Timer cardResetTimer;
 
     // Phone input components
     private JTextField phoneNumberInput;
@@ -251,6 +259,17 @@ public class MainFrame extends JFrame {
         offlineBtn.setForeground(Color.WHITE);
         offlineBtn.setEnabled(false);
 
+        JButton testBtn = new JButton("Test");
+        testBtn.setBackground(new Color(155, 89, 182));
+        testBtn.setForeground(Color.WHITE);
+        testBtn.setFont(new Font("Arial", Font.BOLD, 14));
+        testBtn.addActionListener(e -> {
+            // Test data simulating incoming call
+            String testCallData = "{\"customerName\":\"Test Müşteri\",\"phoneNumber\":\"+905551234567\"}";
+            onIncomingCall(testCallData);
+        });
+        this.testButton = testBtn;
+
         // Accept call
         acceptBtn.addActionListener(e -> {
             System.out.println("Accept button clicked");
@@ -361,6 +380,7 @@ public class MainFrame extends JFrame {
         callControlPanel.add(hangupBtn);
         callControlPanel.add(new JSeparator(SwingConstants.VERTICAL));
         callControlPanel.add(availableBtn);
+        callControlPanel.add(testBtn);
         callControlPanel.add(offlineBtn);
 
         JPanel topPanel = new JPanel(new BorderLayout(5, 0));
@@ -419,6 +439,10 @@ public class MainFrame extends JFrame {
         centerWrapper.add(numpadPanel);
         mainContentPanel.add(centerWrapper, BorderLayout.CENTER);
 
+        // Customer info card on the left
+        customerCardPanel = createCustomerCardPanel();
+        mainContentPanel.add(customerCardPanel, BorderLayout.WEST);
+
 //        // CCP browser in a separate off-screen window (must be visible for CEF to work)
 //        JWindow browserWindow = new JWindow();
 //        browserWindow.setSize(400, 400);
@@ -467,12 +491,59 @@ public class MainFrame extends JFrame {
         System.out.println("*** INCOMING CALL ***");
         System.out.println("Call Data: " + callData);
 
-        // Enable buttons
+        // Cancel any existing reset timer
+        if (cardResetTimer != null) {
+            cardResetTimer.stop();
+            cardResetTimer = null;
+        }
+
+        // Parse JSON to get customer info
+        String customerName = parseJsonField(callData, "customerName");
+        String phoneNumber = parseJsonField(callData, "phoneNumber");
+
         SwingUtilities.invokeLater(() -> {
+            if (!isCallActive) {
+                // First click - Green state (incoming call)
+                isCallActive = true;
+                updateCustomerCard(customerName, phoneNumber, new Color(39, 174, 96)); // Green
+            } else {
+                // Second click - Red state (call ended/rejected simulation)
+                updateCustomerCard(customerName, phoneNumber, new Color(231, 76, 60)); // Red
+
+                // Start 10 second timer to reset card
+                cardResetTimer = new Timer(2000, e -> {
+                    resetCustomerCard();
+                    cardResetTimer = null;
+                });
+                cardResetTimer.setRepeats(false);
+                cardResetTimer.start();
+            }
+
+            // Enable buttons
             if (acceptButton != null) acceptButton.setEnabled(true);
             if (rejectButton != null) rejectButton.setEnabled(true);
             if (hangupButton != null) hangupButton.setEnabled(false);
         });
+    }
+
+    /**
+     * Simple JSON field parser (for fields like "fieldName":"value")
+     */
+    private String parseJsonField(String json, String fieldName) {
+        try {
+            String searchKey = "\"" + fieldName + "\":\"";
+            int startIndex = json.indexOf(searchKey);
+            if (startIndex == -1) return null;
+
+            startIndex += searchKey.length();
+            int endIndex = json.indexOf("\"", startIndex);
+            if (endIndex == -1) return null;
+
+            return json.substring(startIndex, endIndex);
+        } catch (Exception e) {
+            System.err.println("Error parsing JSON field " + fieldName + ": " + e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -631,6 +702,84 @@ public class MainFrame extends JFrame {
                 }
             }
         }
+    }
+
+    // ==================== CUSTOMER CARD PANEL ====================
+
+    /**
+     * Creates the customer info card panel
+     */
+    private JPanel createCustomerCardPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(new Color(52, 73, 94));
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(70, 90, 110), 2),
+            BorderFactory.createEmptyBorder(20, 20, 20, 20)
+        ));
+        panel.setPreferredSize(new Dimension(250, 200));
+
+        // Title
+        JLabel titleLabel = new JLabel("Customer Info");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 16));
+        titleLabel.setForeground(Color.WHITE);
+        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // Customer name label
+        customerNameLabel = new JLabel("-");
+        customerNameLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        customerNameLabel.setForeground(Color.WHITE);
+        customerNameLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // Phone number label
+        customerPhoneLabel = new JLabel("-");
+        customerPhoneLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+        customerPhoneLabel.setForeground(new Color(189, 195, 199));
+        customerPhoneLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        panel.add(titleLabel);
+        panel.add(Box.createVerticalStrut(30));
+        panel.add(customerNameLabel);
+        panel.add(Box.createVerticalStrut(10));
+        panel.add(customerPhoneLabel);
+        panel.add(Box.createVerticalGlue());
+
+        return panel;
+    }
+
+    /**
+     * Updates the customer card with call information
+     */
+    private void updateCustomerCard(String customerName, String phoneNumber, Color backgroundColor) {
+        SwingUtilities.invokeLater(() -> {
+            if (customerCardPanel != null) {
+                customerCardPanel.setBackground(backgroundColor);
+            }
+            if (customerNameLabel != null) {
+                customerNameLabel.setText(customerName != null ? customerName : "-");
+            }
+            if (customerPhoneLabel != null) {
+                customerPhoneLabel.setText(phoneNumber != null ? phoneNumber : "-");
+            }
+        });
+    }
+
+    /**
+     * Resets the customer card to initial state
+     */
+    private void resetCustomerCard() {
+        SwingUtilities.invokeLater(() -> {
+            if (customerCardPanel != null) {
+                customerCardPanel.setBackground(new Color(52, 73, 94));
+            }
+            if (customerNameLabel != null) {
+                customerNameLabel.setText("-");
+            }
+            if (customerPhoneLabel != null) {
+                customerPhoneLabel.setText("-");
+            }
+            isCallActive = false;
+        });
     }
 
     // ==================== NUMPAD PANEL ====================
