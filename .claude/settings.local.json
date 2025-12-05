@@ -6,7 +6,8 @@
       "Bash(java -version:*)",
       "Bash(mvn clean compile:*)",
       "Bash(mvn javafx:run:*)",
-      "Bash(timeout 60 mvn compile:*)"
+      "Bash(timeout 60 mvn compile:*)",
+      "Bash(mvn clean package:*)"
     ],
     "deny": [],
     "ask": []
