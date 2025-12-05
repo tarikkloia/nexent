@@ -41,11 +41,14 @@ public class MainFrame extends JFrame {
     private JButton acceptButton;
     private JButton rejectButton;
     private JButton hangupButton;
-    private JButton availableButton;
-    private JButton offlineButton;
+    private JButton stateToggleButton; // Single button for Available/Offline toggle
     private JButton refreshButton;
     private JButton logoutButton;
     private JButton testButton;
+
+    // Track if this is first login (for auto-available on first offline)
+    private boolean isFirstLogin = true;
+    private String currentAgentState = "";
 
     // Numpad panel reference
     private JPanel numpadPanel;
@@ -249,15 +252,11 @@ public class MainFrame extends JFrame {
         hangupBtn.setFont(new Font("Arial", Font.BOLD, 14));
         hangupBtn.setEnabled(false);
 
-        JButton availableBtn = new JButton("Available");
-        availableBtn.setBackground(new Color(39, 174, 96));
-        availableBtn.setForeground(Color.WHITE);
-        availableBtn.setEnabled(false);
-
-        JButton offlineBtn = new JButton("Offline");
-        offlineBtn.setBackground(new Color(149, 165, 166));
-        offlineBtn.setForeground(Color.WHITE);
-        offlineBtn.setEnabled(false);
+        // Single toggle button for Available/Offline state
+        JButton stateToggleBtn = new JButton("Available");
+        stateToggleBtn.setBackground(new Color(39, 174, 96)); // Green for Available action
+        stateToggleBtn.setForeground(Color.WHITE);
+        stateToggleBtn.setEnabled(false);
 
         JButton testBtn = new JButton("Test");
         testBtn.setBackground(new Color(155, 89, 182));
@@ -288,24 +287,22 @@ public class MainFrame extends JFrame {
             executeScript("scripts/hangupCall.js");
         });
 
-        // Set agent state to Available
-        availableBtn.addActionListener(e -> {
-            System.out.println("Setting agent to Available");
-            executeScript("scripts/setAgentAvailable.js");
-        });
-
-        // Set agent state to Offline
-        offlineBtn.addActionListener(e -> {
-            System.out.println("Setting agent to Offline");
-            executeScript("scripts/setAgentOffline.js");
+        // Toggle agent state (Available <-> Offline)
+        stateToggleBtn.addActionListener(e -> {
+            if ("Available".equalsIgnoreCase(currentAgentState)) {
+                System.out.println("Setting agent to Offline");
+                executeScript("scripts/setAgentOffline.js");
+            } else {
+                System.out.println("Setting agent to Available");
+                executeScript("scripts/setAgentAvailable.js");
+            }
         });
 
         // Store buttons as instance variables for enabling/disabling
         this.acceptButton = acceptBtn;
         this.rejectButton = rejectBtn;
         this.hangupButton = hangupBtn;
-        this.availableButton = availableBtn;
-        this.offlineButton = offlineBtn;
+        this.stateToggleButton = stateToggleBtn;
 
         JButton refreshBtn = new JButton("Refresh");
         JButton logoutBtn = new JButton("Logout");
@@ -374,15 +371,17 @@ public class MainFrame extends JFrame {
         phoneInputPanel.add(phoneNumberInput);
         phoneInputPanel.add(dialButton);
 
+        // Hide phone input panel (outbound calls disabled)
+        phoneInputPanel.setVisible(false);
+
         // Top panel with call controls
         JPanel callControlPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
         callControlPanel.add(acceptBtn);
         callControlPanel.add(rejectBtn);
         callControlPanel.add(hangupBtn);
         callControlPanel.add(new JSeparator(SwingConstants.VERTICAL));
-        callControlPanel.add(availableBtn);
+        callControlPanel.add(stateToggleBtn);
         callControlPanel.add(testBtn);
-        callControlPanel.add(offlineBtn);
 
         JPanel topPanel = new JPanel(new BorderLayout(5, 0));
         topPanel.add(phoneInputPanel, BorderLayout.WEST);
@@ -435,6 +434,8 @@ public class MainFrame extends JFrame {
         // Numpad in center
         numpadPanel = createNumpadPanel();
         setNumpadEnabled(false); // Disabled until CCP login
+        // Hide numpad panel (outbound calls disabled)
+        numpadPanel.setVisible(false);
         JPanel centerWrapper = new JPanel(new GridBagLayout());
         centerWrapper.setBackground(new Color(44, 62, 80));
         centerWrapper.add(numpadPanel);
@@ -580,6 +581,41 @@ public class MainFrame extends JFrame {
      */
     private void onAgentStateChange(String state) {
         System.out.println("*** AGENT STATE CHANGED: " + state + " ***");
+
+        // Auto-available only on first login if offline
+        if (isFirstLogin && "Offline".equalsIgnoreCase(state)) {
+            System.out.println("First login detected as Offline, auto-setting to Available...");
+            isFirstLogin = false;
+            // Use timer to ensure script execution after CCP is ready
+            new Timer(500, e -> {
+                ((Timer)e.getSource()).stop();
+                executeScript("scripts/setAgentAvailable.js");
+            }).start();
+            return;
+        }
+
+        // After first state change, mark first login as done
+        if (isFirstLogin && !"Offline".equalsIgnoreCase(state)) {
+            isFirstLogin = false;
+        }
+
+        // Update current state
+        currentAgentState = state;
+
+        // Update toggle button appearance based on current state
+        SwingUtilities.invokeLater(() -> {
+            if (stateToggleButton != null) {
+                if ("Available".equalsIgnoreCase(state)) {
+                    // Currently Available - button shows "Go Offline"
+                    stateToggleButton.setText("Offline");
+                    stateToggleButton.setBackground(new Color(149, 165, 166)); // Gray
+                } else {
+                    // Currently Offline/Other - button shows "Go Available"
+                    stateToggleButton.setText("Available");
+                    stateToggleButton.setBackground(new Color(39, 174, 96)); // Green
+                }
+            }
+        });
     }
 
     /**
@@ -674,8 +710,7 @@ public class MainFrame extends JFrame {
 
             // Enable controls
             setNumpadEnabled(true);
-            if (availableButton != null) availableButton.setEnabled(true);
-            if (offlineButton != null) offlineButton.setEnabled(true);
+            if (stateToggleButton != null) stateToggleButton.setEnabled(true);
             if (refreshButton != null) refreshButton.setEnabled(true);
             if (logoutButton != null) logoutButton.setEnabled(true);
             if (dialButton != null) dialButton.setEnabled(true);
