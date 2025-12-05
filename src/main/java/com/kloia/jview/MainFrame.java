@@ -233,35 +233,36 @@ public class MainFrame extends JFrame {
             }
         });
 
-        // ==================== CALL CONTROL BUTTONS ====================
-        JButton acceptBtn = new JButton("Accept");
-        acceptBtn.setBackground(new Color(46, 204, 113));
-        acceptBtn.setForeground(Color.WHITE);
-        acceptBtn.setFont(new Font("Arial", Font.BOLD, 14));
+        // ==================== CALL CONTROL BUTTONS (Modern Style) ====================
+        JButton acceptBtn = createModernButton("Accept",
+            new Color(46, 204, 113),   // Green
+            new Color(39, 174, 96),    // Darker green hover
+            new Color(30, 150, 80));   // Even darker pressed
         acceptBtn.setEnabled(false);
 
-        JButton rejectBtn = new JButton("Reject");
-        rejectBtn.setBackground(new Color(231, 76, 60));
-        rejectBtn.setForeground(Color.WHITE);
-        rejectBtn.setFont(new Font("Arial", Font.BOLD, 14));
+        JButton rejectBtn = createModernButton("Reject",
+            new Color(231, 76, 60),    // Red
+            new Color(200, 60, 50),    // Darker red hover
+            new Color(170, 50, 40));   // Even darker pressed
         rejectBtn.setEnabled(false);
 
-        JButton hangupBtn = new JButton("Hang Up");
-        hangupBtn.setBackground(new Color(192, 57, 43));
-        hangupBtn.setForeground(Color.WHITE);
-        hangupBtn.setFont(new Font("Arial", Font.BOLD, 14));
+        JButton hangupBtn = createModernButton("Hang Up",
+            new Color(192, 57, 43),    // Dark red
+            new Color(160, 45, 35),    // Darker hover
+            new Color(130, 35, 25));   // Even darker pressed
         hangupBtn.setEnabled(false);
 
         // Single toggle button for Available/Offline state
-        JButton stateToggleBtn = new JButton("Available");
-        stateToggleBtn.setBackground(new Color(39, 174, 96)); // Green for Available action
-        stateToggleBtn.setForeground(Color.WHITE);
+        JButton stateToggleBtn = createModernButton("Available",
+            new Color(39, 174, 96),    // Green
+            new Color(30, 150, 80),    // Darker hover
+            new Color(25, 130, 70));   // Pressed
         stateToggleBtn.setEnabled(false);
 
-        JButton testBtn = new JButton("Test");
-        testBtn.setBackground(new Color(155, 89, 182));
-        testBtn.setForeground(Color.WHITE);
-        testBtn.setFont(new Font("Arial", Font.BOLD, 14));
+        JButton testBtn = createModernButton("Test",
+            new Color(155, 89, 182),   // Purple
+            new Color(130, 75, 155),   // Darker hover
+            new Color(110, 60, 130));  // Pressed
         testBtn.addActionListener(e -> {
             // Test data simulating incoming call
             String testCallData = "{\"customerName\":\"Test Müşteri\",\"phoneNumber\":\"+905551234567\"}";
@@ -521,9 +522,11 @@ public class MainFrame extends JFrame {
                 cardResetTimer.start();
             }
 
-            // Enable buttons
-            if (acceptButton != null) acceptButton.setEnabled(true);
-            if (rejectButton != null) rejectButton.setEnabled(true);
+            // Enable accept/reject only if agent is Available
+            if ("Available".equalsIgnoreCase(currentAgentState)) {
+                if (acceptButton != null) acceptButton.setEnabled(true);
+                if (rejectButton != null) rejectButton.setEnabled(true);
+            }
             if (hangupButton != null) hangupButton.setEnabled(false);
         });
     }
@@ -602,18 +605,28 @@ public class MainFrame extends JFrame {
         // Update current state
         currentAgentState = state;
 
-        // Update toggle button appearance based on current state
+        // Update toggle button appearance and call buttons based on current state
         SwingUtilities.invokeLater(() -> {
             if (stateToggleButton != null) {
                 if ("Available".equalsIgnoreCase(state)) {
                     // Currently Available - button shows "Go Offline"
                     stateToggleButton.setText("Offline");
                     stateToggleButton.setBackground(new Color(149, 165, 166)); // Gray
+                    stateToggleButton.putClientProperty("hoverColor", new Color(130, 145, 150));
+                    stateToggleButton.putClientProperty("pressedColor", new Color(110, 125, 130));
                 } else {
                     // Currently Offline/Other - button shows "Go Available"
                     stateToggleButton.setText("Available");
                     stateToggleButton.setBackground(new Color(39, 174, 96)); // Green
+                    stateToggleButton.putClientProperty("hoverColor", new Color(30, 150, 80));
+                    stateToggleButton.putClientProperty("pressedColor", new Color(25, 130, 70));
+
+                    // Disable accept/reject when Offline (no calls can come in)
+                    if (acceptButton != null) acceptButton.setEnabled(false);
+                    if (rejectButton != null) rejectButton.setEnabled(false);
+                    if (hangupButton != null) hangupButton.setEnabled(false);
                 }
+                stateToggleButton.repaint();
             }
         });
     }
@@ -1041,5 +1054,90 @@ public class MainFrame extends JFrame {
         String finalUrl = url;
 
         new MainFrame(finalUrlAWS, finalUrl, useOsr, false, args);
+    }
+
+    /**
+     * Creates a modern styled button with rounded corners and hover effects
+     */
+    private JButton createModernButton(String text, Color bgColor, Color hoverColor, Color pressedColor) {
+        JButton button = new JButton(text) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                // Get colors from client properties (allows dynamic updates)
+                Color hover = (Color) getClientProperty("hoverColor");
+                Color pressed = (Color) getClientProperty("pressedColor");
+                if (hover == null) hover = getBackground().darker();
+                if (pressed == null) pressed = getBackground().darker().darker();
+
+                // Draw rounded background
+                if (getModel().isPressed()) {
+                    g2.setColor(pressed);
+                } else if (getModel().isRollover() && isEnabled()) {
+                    g2.setColor(hover);
+                } else {
+                    g2.setColor(getBackground());
+                }
+
+                // Dim background if disabled
+                if (!isEnabled()) {
+                    Color c = g2.getColor();
+                    g2.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 100));
+                }
+
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+
+                // Draw text
+                g2.setColor(getForeground());
+                g2.setFont(getFont());
+                FontMetrics fm = g2.getFontMetrics();
+                int x = (getWidth() - fm.stringWidth(getText())) / 2;
+                int y = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
+
+                // Dim text if disabled
+                if (!isEnabled()) {
+                    g2.setColor(new Color(getForeground().getRed(), getForeground().getGreen(),
+                                          getForeground().getBlue(), 120));
+                }
+                g2.drawString(getText(), x, y);
+                g2.dispose();
+            }
+
+            @Override
+            protected void paintBorder(Graphics g) {
+                // No border - clean modern look
+            }
+
+            @Override
+            public Dimension getPreferredSize() {
+                Dimension size = super.getPreferredSize();
+                return new Dimension(Math.max(size.width + 24, 100), 36);
+            }
+        };
+
+        button.setBackground(bgColor);
+        button.setForeground(Color.WHITE);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setOpaque(false);
+        button.putClientProperty("hoverColor", hoverColor);
+        button.putClientProperty("pressedColor", pressedColor);
+
+        return button;
+    }
+
+    /**
+     * Updates modern button colors (for toggle button state changes)
+     */
+    private void updateModernButtonColors(JButton button, Color bgColor, Color hoverColor, Color pressedColor) {
+        button.setBackground(bgColor);
+        button.putClientProperty("hoverColor", hoverColor);
+        button.putClientProperty("pressedColor", pressedColor);
+        button.repaint();
     }
 }
