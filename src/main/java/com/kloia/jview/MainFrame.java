@@ -312,6 +312,7 @@ public class MainFrame extends JFrame {
         refreshBtn.setEnabled(false);
         logoutBtn.setEnabled(false);
         logoutBtn.setVisible(false);
+        refreshBtn.setVisible(false);
         this.refreshButton = refreshBtn;
         this.logoutButton = logoutBtn;
 
