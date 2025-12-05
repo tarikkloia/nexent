@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(cat:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(java -version:*)",
+      "Bash(mvn clean compile:*)",
+      "Bash(mvn javafx:run:*)"
     ],
     "deny": [],
     "ask": []
