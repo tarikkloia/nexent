@@ -306,12 +306,13 @@ public class MainApp extends Application {
         customerCardPanel = createCustomerCard();
         centerContent.getChildren().add(customerCardPanel);
 
-        // CCP Browser in separate Swing JFrame (JCEF doesn't work well with SwingNode)
+        // CCP Browser in hidden JFrame (off-screen, JCEF requires visible window)
         SwingUtilities.invokeLater(() -> {
             JFrame browserFrame = new JFrame("AWS Connect CCP");
             browserFrame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-            browserFrame.setSize(420, 500);
-            browserFrame.setResizable(false);
+            browserFrame.setSize(400, 400);
+            browserFrame.setUndecorated(true); // No title bar
+            browserFrame.setLocation(-2000, -2000); // Off-screen position
 
             JPanel browserPanel = new JPanel(new BorderLayout());
             browserPanel.setBackground(java.awt.Color.DARK_GRAY);
@@ -321,16 +322,7 @@ public class MainApp extends Application {
             }
 
             browserFrame.add(browserPanel);
-
-            // Position next to main window
-            Platform.runLater(() -> {
-                double mainX = primaryStage.getX();
-                double mainWidth = primaryStage.getWidth();
-                SwingUtilities.invokeLater(() -> {
-                    browserFrame.setLocation((int)(mainX + mainWidth + 10), 100);
-                    browserFrame.setVisible(true);
-                });
-            });
+            browserFrame.setVisible(true); // Must be visible for JCEF to work
 
             // Close browser frame when main stage closes
             primaryStage.setOnCloseRequest(e -> {
