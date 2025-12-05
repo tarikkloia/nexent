@@ -24,6 +24,9 @@ public class DemoAppFX extends Application {
     private KloiaConnectServiceFX service;
     private KloiaConnectUIFX ui;
 
+    // CCP panel visibility (--ccp=1 visible, --ccp=0 hidden, default: 1)
+    private static boolean ccpVisible = true;
+
     @Override
     public void start(Stage primaryStage) {
         primaryStage.setTitle("Kloia Connect - Embedded FX");
@@ -31,8 +34,8 @@ public class DemoAppFX extends Application {
         // Create service with SwingNode
         service = new KloiaConnectServiceFX();
 
-        // Create UI (includes embedded browser area)
-        ui = new KloiaConnectUIFX(service);
+        // Create UI (includes embedded browser area if ccpVisible)
+        ui = new KloiaConnectUIFX(service, ccpVisible);
 
         // Create scene with the UI root
         Scene scene = new Scene(ui.getRoot(), 950, 650);
@@ -60,6 +63,14 @@ public class DemoAppFX extends Application {
     }
 
     public static void main(String[] args) {
+        // Parse --ccp parameter
+        for (String arg : args) {
+            if (arg.startsWith("--ccp=")) {
+                String value = arg.substring(6);
+                ccpVisible = "1".equals(value) || "true".equalsIgnoreCase(value);
+                System.out.println("CCP panel visibility: " + (ccpVisible ? "VISIBLE" : "HIDDEN"));
+            }
+        }
         launch(args);
     }
 }

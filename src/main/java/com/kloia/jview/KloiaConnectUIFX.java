@@ -58,9 +58,17 @@ public class KloiaConnectUIFX {
 
     // State
     private boolean isReady = false;
+    private boolean ccpVisible = true;
 
     public KloiaConnectUIFX(KloiaConnectServiceFX service) {
         this.service = service;
+        createUI();
+        bindServiceCallbacks();
+    }
+
+    public KloiaConnectUIFX(KloiaConnectServiceFX service, boolean ccpVisible) {
+        this.service = service;
+        this.ccpVisible = ccpVisible;
         createUI();
         bindServiceCallbacks();
     }
@@ -194,30 +202,35 @@ public class KloiaConnectUIFX {
 
         leftSide.getChildren().addAll(customerCardPanel, dialpad);
 
+        content.getChildren().add(leftSide);
+
         // Right side: JCEF Browser (SwingNode - will be black but functional)
-        VBox browserContainer = new VBox(10);
-        browserContainer.setAlignment(Pos.TOP_CENTER);
+        // Only show if ccpVisible is true
+        if (ccpVisible) {
+            VBox browserContainer = new VBox(10);
+            browserContainer.setAlignment(Pos.TOP_CENTER);
 
-        Label browserLabel = new Label("AWS Connect CCP (Background)");
-        browserLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
-        browserLabel.setTextFill(Color.WHITE);
+            Label browserLabel = new Label("AWS Connect CCP (Background)");
+            browserLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+            browserLabel.setTextFill(Color.WHITE);
 
-        Label noteLabel = new Label("Browser runs in background - visual is black");
-        noteLabel.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 10));
-        noteLabel.setTextFill(Color.web("#7F8C8D"));
+            Label noteLabel = new Label("Browser runs in background - visual is black");
+            noteLabel.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 10));
+            noteLabel.setTextFill(Color.web("#7F8C8D"));
 
-        // Browser SwingNode wrapper
-        StackPane browserWrapper = new StackPane();
-        browserWrapper.setPrefSize(400, 400);
-        browserWrapper.setMinSize(400, 400);
-        browserWrapper.setStyle("-fx-background-color: #1A1A1A; -fx-border-color: #0073BB; -fx-border-width: 2; -fx-border-radius: 5;");
+            // Browser SwingNode wrapper
+            StackPane browserWrapper = new StackPane();
+            browserWrapper.setPrefSize(400, 400);
+            browserWrapper.setMinSize(400, 400);
+            browserWrapper.setStyle("-fx-background-color: #1A1A1A; -fx-border-color: #0073BB; -fx-border-width: 2; -fx-border-radius: 5;");
 
-        // Add the SwingNode from service
-        browserWrapper.getChildren().add(service.getBrowserNode());
+            // Add the SwingNode from service
+            browserWrapper.getChildren().add(service.getBrowserNode());
 
-        browserContainer.getChildren().addAll(browserLabel, noteLabel, browserWrapper);
+            browserContainer.getChildren().addAll(browserLabel, noteLabel, browserWrapper);
 
-        content.getChildren().addAll(leftSide, browserContainer);
+            content.getChildren().add(browserContainer);
+        }
 
         return content;
     }
