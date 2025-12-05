@@ -69,6 +69,9 @@ public class MainApp extends Application {
     private String currentAgentState = "";
     private boolean isCallActive = false;
 
+    // CCP visibility (controlled by startup parameter: --ccp=1 visible, --ccp=0 hidden)
+    private static boolean ccpVisible = false;
+
     // AWS Connect credentials
     private static final String AWS_USERNAME = "o_ozcan";
     private static final String AWS_PASSWORD = "326748.k_AWS";
@@ -306,13 +309,30 @@ public class MainApp extends Application {
         customerCardPanel = createCustomerCard();
         centerContent.getChildren().add(customerCardPanel);
 
-        // CCP Browser in hidden JFrame (off-screen, JCEF requires visible window)
+        // CCP Browser in JFrame (visibility controlled by --ccp parameter)
         SwingUtilities.invokeLater(() -> {
-            JFrame browserFrame = new JFrame("AWS Connect CCP");
+            JFrame browserFrame = new JFrame(ccpVisible ? "AWS Connect CCP" : "");
             browserFrame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-            browserFrame.setSize(400, 400);
-            browserFrame.setUndecorated(true); // No title bar
-            browserFrame.setLocation(-2000, -2000); // Off-screen position
+
+            if (ccpVisible) {
+                // Visible mode: show as normal window
+                browserFrame.setSize(420, 500);
+                browserFrame.setResizable(false);
+                // Position next to main window
+                Platform.runLater(() -> {
+                    double mainX = primaryStage.getX();
+                    double mainWidth = primaryStage.getWidth();
+                    SwingUtilities.invokeLater(() -> {
+                        browserFrame.setLocation((int)(mainX + mainWidth + 10), 100);
+                    });
+                });
+            } else {
+                // Hidden mode: off-screen, no taskbar, no Alt+Tab
+                browserFrame.setType(java.awt.Window.Type.UTILITY);
+                browserFrame.setSize(400, 400);
+                browserFrame.setUndecorated(true);
+                browserFrame.setLocation(-2000, -2000);
+            }
 
             JPanel browserPanel = new JPanel(new BorderLayout());
             browserPanel.setBackground(java.awt.Color.DARK_GRAY);
@@ -878,6 +898,14 @@ public class MainApp extends Application {
     }
 
     public static void main(String[] args) {
+        // Parse --ccp parameter
+        for (String arg : args) {
+            if (arg.startsWith("--ccp=")) {
+                String value = arg.substring(6);
+                ccpVisible = "1".equals(value) || "true".equalsIgnoreCase(value);
+                System.out.println("CCP visibility: " + (ccpVisible ? "VISIBLE" : "HIDDEN"));
+            }
+        }
         launch(args);
     }
 }
